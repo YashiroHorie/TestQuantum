@@ -22,6 +22,7 @@ import pandas as pd
 from pathlib import Path
 import warnings
 import json
+import re
 warnings.filterwarnings('ignore')
 
 # Import quantum libraries
