@@ -32,7 +32,7 @@ def main():
     # Find the simple circuit specifically
     simple_circuit = None
     for file in qasm_files:
-        if "peaked_circuit_diff=0.100_PUBLIC_0f894320" in file:
+        if "peaked_circuit_diff=2.500_PUBLIC_98054206" in file:
             simple_circuit = file
             break
     

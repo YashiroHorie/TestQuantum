@@ -608,6 +608,37 @@ class QuantumSimulatorComparison:
             print(f"Error calculating target accuracy: {e}")
             return None
     
+    def get_bitstring_info(self, statevector):
+        """Get most likely bitstring and its probability from statevector"""
+        if statevector is None:
+            return None, None, None
+        
+        try:
+            # Calculate measurement probabilities
+            probs = np.abs(statevector) ** 2
+            
+            # Find most likely state
+            most_likely_idx = np.argmax(probs)
+            max_prob = probs[most_likely_idx]
+            
+            # Convert to bitstring
+            num_qubits = int(np.log2(len(statevector)))
+            most_likely_bitstring = format(most_likely_idx, f'0{num_qubits}b')
+            
+            # Get top 3 states
+            top_indices = np.argsort(probs)[-3:][::-1]
+            top_states = []
+            for idx in top_indices:
+                bitstring = format(idx, f'0{num_qubits}b')
+                prob = probs[idx]
+                top_states.append((bitstring, prob))
+            
+            return most_likely_bitstring, max_prob, top_states
+            
+        except Exception as e:
+            print(f"Error getting bitstring info: {e}")
+            return None, None, None
+    
     def run_comparison(self, qasm_file):
         """Run comparison for a single QASM file"""
         print(f"Processing: {qasm_file}")
@@ -627,6 +658,14 @@ class QuantumSimulatorComparison:
         if qiskit_state is not None:
             print(f"  ✓ Qiskit simulation completed in {qiskit_time:.4f}s")
             print(f"    Statevector shape: {qiskit_state.shape}")
+            
+            # Get bitstring information
+            bitstring, prob, top_states = self.get_bitstring_info(qiskit_state)
+            if bitstring is not None:
+                print(f"    📊 Most likely bitstring: {bitstring} (prob: {prob:.6f})")
+                print(f"    🎯 Top 3 states:")
+                for i, (bs, p) in enumerate(top_states):
+                    print(f"      {i+1}. {bs} (prob: {p:.6f})")
         else:
             print("  ✗ Qiskit simulation failed")
         
@@ -637,6 +676,14 @@ class QuantumSimulatorComparison:
             if qiskit_mps_state is not None:
                 print(f"  ✓ Qiskit MPS simulation completed in {qiskit_mps_time:.4f}s")
                 print(f"    Statevector shape: {qiskit_mps_state.shape}")
+                
+                # Get bitstring information
+                bitstring, prob, top_states = self.get_bitstring_info(qiskit_mps_state)
+                if bitstring is not None:
+                    print(f"    📊 Most likely bitstring: {bitstring} (prob: {prob:.6f})")
+                    print(f"    🎯 Top 3 states:")
+                    for i, (bs, p) in enumerate(top_states):
+                        print(f"      {i+1}. {bs} (prob: {p:.6f})")
             else:
                 print("  ✗ Qiskit MPS simulation failed")
         else:
@@ -650,6 +697,14 @@ class QuantumSimulatorComparison:
             if qiskit_gpu_state is not None:
                 print(f"  ✓ Qiskit GPU simulation completed in {qiskit_gpu_time:.4f}s")
                 print(f"    Statevector shape: {qiskit_gpu_state.shape}")
+                
+                # Get bitstring information
+                bitstring, prob, top_states = self.get_bitstring_info(qiskit_gpu_state)
+                if bitstring is not None:
+                    print(f"    📊 Most likely bitstring: {bitstring} (prob: {prob:.6f})")
+                    print(f"    🎯 Top 3 states:")
+                    for i, (bs, p) in enumerate(top_states):
+                        print(f"      {i+1}. {bs} (prob: {p:.6f})")
             else:
                 print("  ✗ Qiskit GPU simulation failed")
         else:
@@ -670,6 +725,14 @@ class QuantumSimulatorComparison:
         if qsimcirq_state is not None:
             print(f"  ✓ QsimCirq simulation completed in {qsimcirq_time:.4f}s")
             print(f"    Statevector shape: {qsimcirq_state.shape}")
+            
+            # Get bitstring information
+            bitstring, prob, top_states = self.get_bitstring_info(qsimcirq_state)
+            if bitstring is not None:
+                print(f"    📊 Most likely bitstring: {bitstring} (prob: {prob:.6f})")
+                print(f"    🎯 Top 3 states:")
+                for i, (bs, p) in enumerate(top_states):
+                    print(f"      {i+1}. {bs} (prob: {p:.6f})")
         else:
             print("  ✗ QsimCirq simulation failed")
         
@@ -784,6 +847,39 @@ class QuantumSimulatorComparison:
         print(f"  File: {os.path.basename(qasm_file)}")
         print(f"  Qubits: {num_qubits}")
         print(f"  Gates: {num_gates}")
+        
+        # Bitstring comparison summary
+        print("\n📊 BITSTRING COMPARISON:")
+        simulators = [
+            ("Qiskit (Statevector)", qiskit_state),
+            ("Qiskit (MPS)", qiskit_mps_state),
+            ("Qiskit (GPU)", qiskit_gpu_state),
+            ("QsimCirq", qsimcirq_state)
+        ]
+        
+        for name, state in simulators:
+            if state is not None:
+                bitstring, prob, _ = self.get_bitstring_info(state)
+                if bitstring is not None:
+                    print(f"  {name:20}: {bitstring} (prob: {prob:.6f})")
+                else:
+                    print(f"  {name:20}: Failed to get bitstring")
+            else:
+                print(f"  {name:20}: No result")
+        
+        # Target accuracy summary
+        if expected_data and expected_data.get('target_state'):
+            target_state = expected_data['target_state']
+            print(f"\n🎯 TARGET ACCURACY (target: {target_state}):")
+            for name, state in simulators:
+                if state is not None:
+                    accuracy = self.calculate_target_accuracy(state, target_state)
+                    if accuracy is not None:
+                        print(f"  {name:20}: {accuracy:.8f}")
+                    else:
+                        print(f"  {name:20}: Failed to calculate")
+                else:
+                    print(f"  {name:20}: No result")
         print(f"  Qiskit time: {qiskit_time:.4f}s" if qiskit_time else "  Qiskit time: N/A")
         print(f"  Qiskit MPS time: {qiskit_mps_time:.4f}s" if qiskit_mps_time else "  Qiskit MPS time: N/A")
         print(f"  Qiskit GPU time: {qiskit_gpu_time:.4f}s" if qiskit_gpu_time else "  Qiskit GPU time: N/A")
