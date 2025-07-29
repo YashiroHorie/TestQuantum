@@ -211,30 +211,56 @@ class QuantumSimulatorComparison:
         if not QISKIT_AVAILABLE:
             return None, None
         
-        # Use threading-based timeout
-        result = [None]
-        exception = [None]
+        # Use multiprocessing-based timeout for more reliable termination
+        import multiprocessing
+        import queue
         
         def run_simulation():
             try:
-                result[0] = self._run_qiskit(qasm_file)
+                return self._run_qiskit(qasm_file)
             except Exception as e:
-                exception[0] = e
+                raise e
         
-        thread = threading.Thread(target=run_simulation)
-        thread.daemon = True
-        thread.start()
-        thread.join(30)  # 30 second timeout
+        # Create a queue to get results
+        result_queue = multiprocessing.Queue()
         
-        if thread.is_alive():
+        def target():
+            try:
+                result = run_simulation()
+                result_queue.put(('success', result))
+            except Exception as e:
+                result_queue.put(('error', str(e)))
+        
+        # Start the process
+        process = multiprocessing.Process(target=target)
+        process.start()
+        
+        # Wait for the process to complete or timeout
+        process.join(30)  # 30 second timeout
+        
+        if process.is_alive():
+            # Force terminate the process
+            process.terminate()
+            process.join(1)  # Give it 1 second to terminate gracefully
+            if process.is_alive():
+                process.kill()  # Force kill if still alive
             print(f"  ⏰ Qiskit simulation timed out (>30s), skipping...")
             return None, None
         
-        if exception[0]:
-            print(f"  ✗ Qiskit simulation failed: {exception[0]}")
+        # Get result from queue
+        try:
+            if not result_queue.empty():
+                status, result = result_queue.get(timeout=1)
+                if status == 'success':
+                    return result
+                else:
+                    print(f"  ✗ Qiskit simulation failed: {result}")
+                    return None, None
+        except queue.Empty:
+            print(f"  ✗ Qiskit simulation failed: no result received")
             return None, None
         
-        return result[0]
+        return None, None
     
     @run_with_timeout(timeout_seconds=30)
     def _run_qiskit_mps(self, qasm_file):
@@ -271,28 +297,112 @@ class QuantumSimulatorComparison:
         if not QISKIT_AVAILABLE:
             return None, None
         
-        try:
-            return self._run_qiskit_mps(qasm_file)
-        except TimeoutError:
+        # Use multiprocessing-based timeout for more reliable termination
+        import multiprocessing
+        import queue
+        
+        def run_simulation():
+            try:
+                return self._run_qiskit_mps(qasm_file)
+            except Exception as e:
+                raise e
+        
+        # Create a queue to get results
+        result_queue = multiprocessing.Queue()
+        
+        def target():
+            try:
+                result = run_simulation()
+                result_queue.put(('success', result))
+            except Exception as e:
+                result_queue.put(('error', str(e)))
+        
+        # Start the process
+        process = multiprocessing.Process(target=target)
+        process.start()
+        
+        # Wait for the process to complete or timeout
+        process.join(30)  # 30 second timeout
+        
+        if process.is_alive():
+            # Force terminate the process
+            process.terminate()
+            process.join(1)  # Give it 1 second to terminate gracefully
+            if process.is_alive():
+                process.kill()  # Force kill if still alive
             print(f"  ⏰ Qiskit MPS simulation timed out (>30s), skipping...")
             return None, None
-        except Exception as e:
-            print(f"  ✗ Qiskit MPS simulation failed: {e}")
+        
+        # Get result from queue
+        try:
+            if not result_queue.empty():
+                status, result = result_queue.get(timeout=1)
+                if status == 'success':
+                    return result
+                else:
+                    print(f"  ✗ Qiskit MPS simulation failed: {result}")
+                    return None, None
+        except queue.Empty:
+            print(f"  ✗ Qiskit MPS simulation failed: no result received")
             return None, None
+        
+        return None, None
 
     def run_qiskit_gpu_simulation(self, qasm_file):
         """Run simulation using Qiskit Aer GPU simulator"""
         if not QISKIT_AVAILABLE:
             return None, None
         
-        try:
-            return self._run_qiskit_gpu(qasm_file)
-        except TimeoutError:
+        # Use multiprocessing-based timeout for more reliable termination
+        import multiprocessing
+        import queue
+        
+        def run_simulation():
+            try:
+                return self._run_qiskit_gpu(qasm_file)
+            except Exception as e:
+                raise e
+        
+        # Create a queue to get results
+        result_queue = multiprocessing.Queue()
+        
+        def target():
+            try:
+                result = run_simulation()
+                result_queue.put(('success', result))
+            except Exception as e:
+                result_queue.put(('error', str(e)))
+        
+        # Start the process
+        process = multiprocessing.Process(target=target)
+        process.start()
+        
+        # Wait for the process to complete or timeout
+        process.join(30)  # 30 second timeout
+        
+        if process.is_alive():
+            # Force terminate the process
+            process.terminate()
+            process.join(1)  # Give it 1 second to terminate gracefully
+            if process.is_alive():
+                process.kill()  # Force kill if still alive
             print(f"  ⏰ Qiskit GPU simulation timed out (>30s), skipping...")
             return None, None
-        except Exception as e:
-            print(f"  ✗ Qiskit GPU simulation failed: {e}")
+        
+        # Get result from queue
+        try:
+            if not result_queue.empty():
+                status, result = result_queue.get(timeout=1)
+                if status == 'success':
+                    return result
+                else:
+                    print(f"  ✗ Qiskit GPU simulation failed: {result}")
+                    return None, None
+        except queue.Empty:
+            print(f"  ✗ Qiskit GPU simulation failed: no result received")
             return None, None
+        
+        return None, None
 
     @run_with_timeout(timeout_seconds=30)
     def _run_qiskit_gpu(self, qasm_file):
