@@ -1,0 +1,12 @@
+{
+    "circuit_file": "simple_circuit_3qubits.qasm",
+    "difficulty_level": 0.0,
+    "seed": 12345,
+    "ident": "simple3",
+    "num_qubits": 3,
+    "rqc_depth": 3,
+    "pqc_depth": 2,
+    "target_state": "101",
+    "peak_prob": 0.125,
+    "est_num_shots": 8
+}

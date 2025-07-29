@@ -79,27 +79,29 @@ def timeout_handler(signum, frame):
     raise TimeoutError("Operation timed out")
 
 
-def run_with_timeout(func, timeout_seconds=300):
-    """Run a function with a timeout"""
-    def wrapper(*args, **kwargs):
-        # Set up signal handler for timeout
-        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout_seconds)
+def run_with_timeout(timeout_seconds=300):
+    """Decorator to run a function with a timeout"""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            # Set up signal handler for timeout
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout_seconds)
+            
+            try:
+                result = func(*args, **kwargs)
+                signal.alarm(0)  # Cancel the alarm
+                return result
+            except TimeoutError:
+                print(f"  ⏰ Timeout after {timeout_seconds}s")
+                return None, None
+            except Exception as e:
+                signal.alarm(0)  # Cancel the alarm
+                raise e
+            finally:
+                signal.signal(signal.SIGALRM, old_handler)
         
-        try:
-            result = func(*args, **kwargs)
-            signal.alarm(0)  # Cancel the alarm
-            return result
-        except TimeoutError:
-            print(f"  ⏰ Timeout after {timeout_seconds}s")
-            return None, None
-        except Exception as e:
-            signal.alarm(0)  # Cancel the alarm
-            raise e
-        finally:
-            signal.signal(signal.SIGALRM, old_handler)
-    
-    return wrapper
+        return wrapper
+    return decorator
 
 
 class QuantumSimulatorComparison:
@@ -157,186 +159,191 @@ class QuantumSimulatorComparison:
             print(f"Error reading meta file for {qasm_file}: {e}")
             return None
     
+    @run_with_timeout(timeout_seconds=300)
+    def _run_qiskit(self, qasm_file):
+        """Internal Qiskit simulation with timeout"""
+        start_time = time.time()
+        
+        # Load QASM file
+        circuit = QuantumCircuit.from_qasm_file(qasm_file)
+        
+        # Get number of qubits
+        num_qubits = circuit.num_qubits
+        
+        # Execute on statevector simulator
+        backend = Aer.get_backend('statevector_simulator')
+        job = execute(circuit, backend)
+        result = job.result()
+        statevector = result.get_statevector()
+        
+        execution_time = time.time() - start_time
+        
+        return statevector, execution_time
+
     def run_qiskit_simulation(self, qasm_file):
         """Run simulation using Qiskit Aer statevector simulator"""
         if not QISKIT_AVAILABLE:
             return None, None
         
-        @run_with_timeout(timeout_seconds=300)
-        def _run_qiskit():
-            start_time = time.time()
-            
-            # Load QASM file
-            circuit = QuantumCircuit.from_qasm_file(qasm_file)
-            
-            # Get number of qubits
-            num_qubits = circuit.num_qubits
-            
-            # Execute on statevector simulator
-            backend = Aer.get_backend('statevector_simulator')
-            job = execute(circuit, backend)
-            result = job.result()
-            statevector = result.get_statevector()
-            
-            execution_time = time.time() - start_time
-            
-            return statevector, execution_time
-        
         try:
-            return _run_qiskit()
+            return self._run_qiskit(qasm_file)
         except Exception as e:
             print(f"Qiskit simulation failed for {qasm_file}: {e}")
             return None, None
     
+    @run_with_timeout(timeout_seconds=300)
+    def _run_qiskit_mps(self, qasm_file):
+        """Internal Qiskit MPS simulation with timeout"""
+        start_time = time.time()
+        
+        # Load QASM file
+        circuit = QuantumCircuit.from_qasm_file(qasm_file)
+        
+        # Get number of qubits
+        num_qubits = circuit.num_qubits
+        
+        # Execute on MPS simulator
+        # Use aer_simulator with MPS method for better performance on certain circuits
+        backend = Aer.get_backend('aer_simulator')
+        
+        # Configure for MPS simulation
+        from qiskit_aer import AerSimulator
+        mps_backend = AerSimulator(method='matrix_product_state')
+        
+        job = execute(circuit, mps_backend)
+        result = job.result()
+        statevector = result.get_statevector()
+        
+        execution_time = time.time() - start_time
+        
+        return statevector, execution_time
+
+    @run_with_timeout(timeout_seconds=300)
+    def _run_qiskit_fallback(self, qasm_file):
+        """Internal Qiskit fallback simulation with timeout"""
+        start_time = time.time()
+        circuit = QuantumCircuit.from_qasm_file(qasm_file)
+        backend = Aer.get_backend('aer_simulator')
+        job = execute(circuit, backend)
+        result = job.result()
+        statevector = result.get_statevector()
+        execution_time = time.time() - start_time
+        return statevector, execution_time
+
     def run_qiskit_mps_simulation(self, qasm_file):
         """Run simulation using Qiskit Aer MPS simulator"""
         if not QISKIT_AVAILABLE:
             return None, None
         
-        @run_with_timeout(timeout_seconds=300)
-        def _run_qiskit_mps():
-            start_time = time.time()
-            
-            # Load QASM file
-            circuit = QuantumCircuit.from_qasm_file(qasm_file)
-            
-            # Get number of qubits
-            num_qubits = circuit.num_qubits
-            
-            # Execute on MPS simulator
-            # Use aer_simulator with MPS method for better performance on certain circuits
-            backend = Aer.get_backend('aer_simulator')
-            
-            # Configure for MPS simulation
-            from qiskit_aer import AerSimulator
-            mps_backend = AerSimulator(method='matrix_product_state')
-            
-            job = execute(circuit, mps_backend)
-            result = job.result()
-            statevector = result.get_statevector()
-            
-            execution_time = time.time() - start_time
-            
-            return statevector, execution_time
-        
         try:
-            return _run_qiskit_mps()
+            return self._run_qiskit_mps(qasm_file)
         except Exception as e:
             print(f"Qiskit MPS simulation failed for {qasm_file}: {e}")
             # Fallback to regular aer_simulator if MPS fails
             try:
-                @run_with_timeout(timeout_seconds=300)
-                def _run_fallback():
-                    start_time = time.time()
-                    circuit = QuantumCircuit.from_qasm_file(qasm_file)
-                    backend = Aer.get_backend('aer_simulator')
-                    job = execute(circuit, backend)
-                    result = job.result()
-                    statevector = result.get_statevector()
-                    execution_time = time.time() - start_time
-                    return statevector, execution_time
-                
-                return _run_fallback()
-                
+                return self._run_qiskit_fallback(qasm_file)
             except Exception as e2:
                 print(f"Qiskit MPS fallback also failed: {e2}")
                 return None, None
     
+    @run_with_timeout(timeout_seconds=300)
+    def _run_quimb(self, qasm_file):
+        """Internal Quimb simulation with timeout"""
+        start_time = time.time()
+        
+        # Convert QASM to Quimb circuit
+        circuit_quimb = self.converter.qasm_to_quimb(qasm_file)
+
+        if circuit_quimb is None:
+            return None, None
+
+        # Execute simulation (simplified)
+        # Note: Full Quimb simulation would require more sophisticated implementation
+        # For now, we just verify the conversion worked
+        execution_time = time.time() - start_time
+
+        # Return None for statevector as full simulation is complex
+        # But we can verify the circuit was converted successfully
+        if circuit_quimb and 'num_qubits' in circuit_quimb:
+            print(f"  Quimb conversion successful: {circuit_quimb['num_qubits']} qubits, {len(circuit_quimb['instructions'])} instructions")
+        
+        return None, execution_time
+
     def run_quimb_simulation(self, qasm_file):
         """Run simulation using Quimb"""
         if not QUIMB_AVAILABLE or self.converter is None:
             return None, None
         
-        @run_with_timeout(timeout_seconds=300)
-        def _run_quimb():
-            start_time = time.time()
-            
-            # Convert QASM to Quimb circuit
-            circuit_quimb = self.converter.qasm_to_quimb(qasm_file)
-
-            if circuit_quimb is None:
-                return None, None
-
-            # Execute simulation (simplified)
-            # Note: Full Quimb simulation would require more sophisticated implementation
-            # For now, we just verify the conversion worked
-            execution_time = time.time() - start_time
-
-            # Return None for statevector as full simulation is complex
-            # But we can verify the circuit was converted successfully
-            if circuit_quimb and 'num_qubits' in circuit_quimb:
-                print(f"  Quimb conversion successful: {circuit_quimb['num_qubits']} qubits, {len(circuit_quimb['instructions'])} instructions")
-            
-            return None, execution_time
-        
         try:
-            return _run_quimb()
+            return self._run_quimb(qasm_file)
         except Exception as e:
             print(f"Quimb simulation failed for {qasm_file}: {e}")
             return None, None
     
+    @run_with_timeout(timeout_seconds=300)
+    def _run_qsimcirq(self, qasm_file):
+        """Internal QsimCirq simulation with timeout"""
+        start_time = time.time()
+        
+        # Convert QASM to Cirq circuit
+        circuit_cirq = self.converter.qasm_to_cirq(qasm_file)
+
+        if circuit_cirq is None:
+            return None, None
+
+        # Execute simulation using QsimCirq
+        try:
+            # Create QsimCirq simulator
+            simulator = qsimcirq.QSimSimulator()
+            
+            # Run simulation
+            result = simulator.simulate(circuit_cirq)
+            statevector = result.final_state_vector
+            
+            execution_time = time.time() - start_time
+            return statevector, execution_time
+            
+        except Exception as e:
+            print(f"QsimCirq execution failed: {e}")
+            execution_time = time.time() - start_time
+            return None, execution_time
+
     def run_qsimcirq_simulation(self, qasm_file):
         """Run simulation using QsimCirq"""
         if not QSIMCIRQ_AVAILABLE or self.converter is None:
             return None, None
         
-        @run_with_timeout(timeout_seconds=300)
-        def _run_qsimcirq():
-            start_time = time.time()
-            
-            # Convert QASM to Cirq circuit
-            circuit_cirq = self.converter.qasm_to_cirq(qasm_file)
-
-            if circuit_cirq is None:
-                return None, None
-
-            # Execute simulation using QsimCirq
-            try:
-                # Create QsimCirq simulator
-                simulator = qsimcirq.QSimSimulator()
-                
-                # Run simulation
-                result = simulator.simulate(circuit_cirq)
-                statevector = result.final_state_vector
-                
-                execution_time = time.time() - start_time
-                return statevector, execution_time
-                
-            except Exception as e:
-                print(f"QsimCirq execution failed: {e}")
-                execution_time = time.time() - start_time
-                return None, execution_time
-        
         try:
-            return _run_qsimcirq()
+            return self._run_qsimcirq(qasm_file)
         except Exception as e:
             print(f"QsimCirq simulation failed for {qasm_file}: {e}")
             return None, None
     
+    @run_with_timeout(timeout_seconds=300)
+    def _run_tensornetwork(self, qasm_file):
+        """Internal TensorNetwork simulation with timeout"""
+        start_time = time.time()
+        
+        # Convert QASM to TensorNetwork representation
+        tensors = self.converter.qasm_to_tensornetwork(qasm_file)
+        
+        if tensors is None:
+            return None, None
+        
+        # Execute simulation (simplified)
+        # Note: Full TensorNetwork simulation would require more sophisticated implementation
+        execution_time = time.time() - start_time
+        
+        # For now, return None as full simulation is complex
+        return None, execution_time
+
     def run_tensornetwork_simulation(self, qasm_file):
         """Run simulation using TensorNetwork"""
         if not TENSORNETWORK_AVAILABLE or self.converter is None:
             return None, None
         
-        @run_with_timeout(timeout_seconds=300)
-        def _run_tensornetwork():
-            start_time = time.time()
-            
-            # Convert QASM to TensorNetwork representation
-            tensors = self.converter.qasm_to_tensornetwork(qasm_file)
-            
-            if tensors is None:
-                return None, None
-            
-            # Execute simulation (simplified)
-            # Note: Full TensorNetwork simulation would require more sophisticated implementation
-            execution_time = time.time() - start_time
-            
-            # For now, return None as full simulation is complex
-            return None, execution_time
-        
         try:
-            return _run_tensornetwork()
+            return self._run_tensornetwork(qasm_file)
         except Exception as e:
             print(f"TensorNetwork simulation failed for {qasm_file}: {e}")
             return None, None
