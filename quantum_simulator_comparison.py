@@ -24,6 +24,7 @@ import warnings
 import json
 import re
 import signal
+import threading
 warnings.filterwarnings('ignore')
 
 # Import quantum libraries
@@ -76,31 +77,32 @@ class TimeoutError(Exception):
     pass
 
 
-def timeout_handler(signum, frame):
-    """Signal handler for timeout"""
-    raise TimeoutError("Operation timed out")
-
-
 def run_with_timeout(timeout_seconds=30):
-    """Decorator to run a function with a timeout"""
+    """Decorator to run a function with a timeout using threading"""
     def decorator(func):
         def wrapper(*args, **kwargs):
-            # Set up signal handler for timeout
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout_seconds)
+            result = [None]
+            exception = [None]
             
-            try:
-                result = func(*args, **kwargs)
-                signal.alarm(0)  # Cancel the alarm
-                return result
-            except TimeoutError:
+            def target():
+                try:
+                    result[0] = func(*args, **kwargs)
+                except Exception as e:
+                    exception[0] = e
+            
+            thread = threading.Thread(target=target)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout_seconds)
+            
+            if thread.is_alive():
                 print(f"  ⏰ Timeout after {timeout_seconds}s")
                 return None, None
-            except Exception as e:
-                signal.alarm(0)  # Cancel the alarm
-                raise e
-            finally:
-                signal.signal(signal.SIGALRM, old_handler)
+            
+            if exception[0]:
+                raise exception[0]
+            
+            return result[0]
         
         return wrapper
     return decorator
