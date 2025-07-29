@@ -123,27 +123,80 @@ def test_peaked_circuit_analysis():
                 # For now, we'll skip CNOT gates in this simplified version
                 print(f"  Note: CNOT gate on qubits {control_idx}, {target_idx} - skipping for now")
         
-        # Create the full state by contracting all qubits
-        # This is a simplified approach - full implementation would be more complex
-        print("  Note: Full tensor contraction skipped for complexity")
-        
         circuit_time = time.time() - start_time
         print(f"Circuit creation completed in {circuit_time:.2f} seconds")
         
-        # For now, return a simplified result since full quimb simulation is complex
+        # Calculate state vector using tensor contraction
+        print("\nCalculating state vector...")
+        start_time = time.time()
+        
+        # For a simplified approach, we'll use numpy to simulate the circuit
+        # This gives us the full state vector to analyze peak probabilities
+        state_vector = simulate_circuit_numpy(num_qubits, instructions)
+        
+        state_time = time.time() - start_time
+        print(f"State vector calculation completed in {state_time:.2f} seconds")
+        
+        # Find peak probability state
+        print("\nAnalyzing peak probability...")
+        start_time = time.time()
+        
+        # Calculate probabilities for each basis state
+        probabilities = np.abs(state_vector) ** 2
+        
+        # Find the state with maximum probability
+        peak_index = np.argmax(probabilities)
+        peak_probability = probabilities[peak_index]
+        
+        # Convert index to bitstring
+        peak_bitstring = format(peak_index, f'0{num_qubits}b')
+        
+        analysis_time = time.time() - start_time
+        print(f"Peak analysis completed in {analysis_time:.2f} seconds")
+        
+        # Print results
         print("\n" + "=" * 60)
-        print("SIMPLIFIED RESULTS:")
+        print("STATE VECTOR ANALYSIS RESULTS:")
         print("=" * 60)
-        print("Full quimb tensor network simulation is complex and requires")
-        print("sophisticated tensor contraction algorithms.")
-        print(f"Successfully parsed circuit with {num_qubits} qubits and {len(instructions)} instructions")
-        print(f"Circuit creation time: {circuit_time:.2f} seconds")
+        print(f"Peak bitstring: {peak_bitstring}")
+        print(f"Peak probability: {peak_probability:.8f} ({peak_probability*100:.6f}%)")
+        print(f"Peak state index: {peak_index}")
+        
+        # Show state vector for peak probability
+        print(f"\nState vector amplitude for peak state:")
+        print(f"  |{peak_bitstring}⟩ = {state_vector[peak_index]:.6f}")
+        
+        # Show top 5 most probable states
+        print(f"\nTop 5 most probable states:")
+        print("-" * 50)
+        top_indices = np.argsort(probabilities)[-5:][::-1]
+        for i, idx in enumerate(top_indices, 1):
+            bitstring = format(idx, f'0{num_qubits}b')
+            prob = probabilities[idx]
+            amplitude = state_vector[idx]
+            print(f"{i}. |{bitstring}⟩: prob={prob:.8f} ({prob*100:.6f}%), amp={amplitude:.6f}")
+        
+        # Show some statistics about the state vector
+        print(f"\nState vector statistics:")
+        print("-" * 30)
+        print(f"Total states: {len(state_vector)}")
+        print(f"Non-zero amplitudes: {np.count_nonzero(state_vector)}")
+        print(f"Max amplitude magnitude: {np.max(np.abs(state_vector)):.6f}")
+        print(f"Min amplitude magnitude: {np.min(np.abs(state_vector[np.abs(state_vector) > 0])):.6f}")
+        print(f"State vector norm: {np.linalg.norm(state_vector):.6f}")
+        
+        # Calculate total time
+        total_time = circuit_time + state_time + analysis_time
+        print(f"\nTotal execution time: {total_time:.2f} seconds")
         
         return {
-            'num_qubits': num_qubits,
-            'num_instructions': len(instructions),
-            'circuit_time': circuit_time,
-            'status': 'parsed_only'
+            'peak_bitstring': peak_bitstring,
+            'peak_probability': peak_probability,
+            'peak_index': peak_index,
+            'state_vector': state_vector,
+            'probabilities': probabilities,
+            'total_time': total_time,
+            'num_qubits': num_qubits
         }
         
     except Exception as e:
@@ -151,6 +204,125 @@ def test_peaked_circuit_analysis():
         import traceback
         traceback.print_exc()
         return None
+
+def simulate_circuit_numpy(num_qubits, instructions):
+    """Simulate quantum circuit using numpy to get full state vector"""
+    
+    # Initialize state vector in |0...0⟩ state
+    state_size = 2 ** num_qubits
+    state_vector = np.zeros(state_size, dtype=complex)
+    state_vector[0] = 1.0  # Start in |0...0⟩ state
+    
+    # Apply gates
+    for instruction in instructions:
+        if instruction[0] == 'h':
+            qubit_idx = instruction[1]
+            # Apply Hadamard to the specified qubit
+            state_vector = apply_hadamard(state_vector, qubit_idx, num_qubits)
+        elif instruction[0] == 'x':
+            qubit_idx = instruction[1]
+            # Apply X gate to the specified qubit
+            state_vector = apply_x_gate(state_vector, qubit_idx, num_qubits)
+        elif instruction[0] == 'y':
+            qubit_idx = instruction[1]
+            # Apply Y gate to the specified qubit
+            state_vector = apply_y_gate(state_vector, qubit_idx, num_qubits)
+        elif instruction[0] == 'z':
+            qubit_idx = instruction[1]
+            # Apply Z gate to the specified qubit
+            state_vector = apply_z_gate(state_vector, qubit_idx, num_qubits)
+        elif instruction[0] == 'rz':
+            qubit_idx = instruction[1]
+            angle = instruction[2]
+            # Apply RZ gate to the specified qubit
+            state_vector = apply_rz_gate(state_vector, qubit_idx, num_qubits, angle)
+        elif instruction[0] == 'cx':
+            control_idx = instruction[1]
+            target_idx = instruction[2]
+            # Apply CNOT gate
+            state_vector = apply_cnot_gate(state_vector, control_idx, target_idx, num_qubits)
+    
+    return state_vector
+
+def apply_hadamard(state_vector, qubit_idx, num_qubits):
+    """Apply Hadamard gate to a specific qubit"""
+    H = np.array([[1, 1], [1, -1]]) / np.sqrt(2)
+    return apply_single_qubit_gate(state_vector, H, qubit_idx, num_qubits)
+
+def apply_x_gate(state_vector, qubit_idx, num_qubits):
+    """Apply X gate to a specific qubit"""
+    X = np.array([[0, 1], [1, 0]])
+    return apply_single_qubit_gate(state_vector, X, qubit_idx, num_qubits)
+
+def apply_y_gate(state_vector, qubit_idx, num_qubits):
+    """Apply Y gate to a specific qubit"""
+    Y = np.array([[0, -1j], [1j, 0]])
+    return apply_single_qubit_gate(state_vector, Y, qubit_idx, num_qubits)
+
+def apply_z_gate(state_vector, qubit_idx, num_qubits):
+    """Apply Z gate to a specific qubit"""
+    Z = np.array([[1, 0], [0, -1]])
+    return apply_single_qubit_gate(state_vector, Z, qubit_idx, num_qubits)
+
+def apply_rz_gate(state_vector, qubit_idx, num_qubits, angle):
+    """Apply RZ gate to a specific qubit"""
+    RZ = np.array([[np.exp(-1j * angle / 2), 0], [0, np.exp(1j * angle / 2)]])
+    return apply_single_qubit_gate(state_vector, RZ, qubit_idx, num_qubits)
+
+def apply_single_qubit_gate(state_vector, gate_matrix, qubit_idx, num_qubits):
+    """Apply a single-qubit gate to a specific qubit"""
+    new_state = np.zeros_like(state_vector)
+    
+    for i in range(len(state_vector)):
+        # Get the bitstring for this state
+        bitstring = format(i, f'0{num_qubits}b')
+        
+        # Get the bit value for the target qubit
+        target_bit = int(bitstring[num_qubits - 1 - qubit_idx])
+        
+        # Apply the gate
+        if target_bit == 0:
+            # Apply gate to |0⟩ component
+            new_state[i] += gate_matrix[0, 0] * state_vector[i]
+            # Find the state with this qubit flipped to |1⟩
+            flipped_bitstring = list(bitstring)
+            flipped_bitstring[num_qubits - 1 - qubit_idx] = '1'
+            flipped_index = int(''.join(flipped_bitstring), 2)
+            new_state[flipped_index] += gate_matrix[1, 0] * state_vector[i]
+        else:
+            # Apply gate to |1⟩ component
+            new_state[i] += gate_matrix[0, 1] * state_vector[i]
+            # Find the state with this qubit flipped to |0⟩
+            flipped_bitstring = list(bitstring)
+            flipped_bitstring[num_qubits - 1 - qubit_idx] = '0'
+            flipped_index = int(''.join(flipped_bitstring), 2)
+            new_state[flipped_index] += gate_matrix[1, 1] * state_vector[i]
+    
+    return new_state
+
+def apply_cnot_gate(state_vector, control_idx, target_idx, num_qubits):
+    """Apply CNOT gate between control and target qubits"""
+    new_state = np.zeros_like(state_vector)
+    
+    for i in range(len(state_vector)):
+        # Get the bitstring for this state
+        bitstring = format(i, f'0{num_qubits}b')
+        
+        # Get the bit values for control and target qubits
+        control_bit = int(bitstring[num_qubits - 1 - control_idx])
+        target_bit = int(bitstring[num_qubits - 1 - target_idx])
+        
+        if control_bit == 1:
+            # Control qubit is |1⟩, so flip target qubit
+            flipped_bitstring = list(bitstring)
+            flipped_bitstring[num_qubits - 1 - target_idx] = '1' if target_bit == 0 else '0'
+            flipped_index = int(''.join(flipped_bitstring), 2)
+            new_state[flipped_index] = state_vector[i]
+        else:
+            # Control qubit is |0⟩, so no change
+            new_state[i] = state_vector[i]
+    
+    return new_state
 
 def test_simple_quimb_circuit():
     """Test with a simple manually created circuit"""
@@ -255,10 +427,10 @@ if __name__ == "__main__":
                 print("SUMMARY:")
                 print(f"{'='*60}")
                 print(f"Successfully analyzed peaked circuit")
+                print(f"Peak bitstring: {result['peak_bitstring']}")
+                print(f"Peak probability: {result['peak_probability']:.8f}")
                 print(f"Qubits: {result['num_qubits']}")
-                print(f"Instructions: {result['num_instructions']}")
-                print(f"Status: {result['status']}")
-                print(f"Time: {result['circuit_time']:.2f} seconds")
+                print(f"Total time: {result['total_time']:.2f} seconds")
         else:
             print("Simple circuit test failed, skipping peaked circuit test")
     else:
