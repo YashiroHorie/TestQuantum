@@ -18,10 +18,11 @@ def test_qiskit_imports():
         return False
     
     try:
-        from qiskit import QuantumCircuit, execute
-        print("✓ QuantumCircuit and execute imported")
+        from qiskit import QuantumCircuit
+        from qiskit.compiler import transpile
+        print("✓ QuantumCircuit and transpile imported")
     except ImportError as e:
-        print(f"✗ QuantumCircuit/execute import failed: {e}")
+        print(f"✗ QuantumCircuit/transpile import failed: {e}")
         return False
     
     try:
@@ -53,7 +54,8 @@ def test_simple_circuit():
     print("=" * 30)
     
     try:
-        from qiskit import QuantumCircuit, execute
+        from qiskit import QuantumCircuit
+        from qiskit.compiler import transpile
         from qiskit_aer import Aer
         
         # Create a simple 2-qubit circuit
@@ -68,7 +70,8 @@ def test_simple_circuit():
         
         # Run simulation
         backend = Aer.get_backend('qasm_simulator')
-        job = execute(circuit, backend, shots=1000)
+        transpiled_circuit = transpile(circuit, backend)
+        job = backend.run(transpiled_circuit, shots=1000)
         result = job.result()
         counts = result.get_counts()
         
@@ -87,7 +90,8 @@ def test_statevector_simulation():
     print("=" * 30)
     
     try:
-        from qiskit import QuantumCircuit, execute
+        from qiskit import QuantumCircuit
+        from qiskit.compiler import transpile
         from qiskit_aer import Aer
         
         # Create a simple circuit
@@ -97,7 +101,8 @@ def test_statevector_simulation():
         
         # Run statevector simulation
         backend = Aer.get_backend('statevector_simulator')
-        job = execute(circuit, backend)
+        transpiled_circuit = transpile(circuit, backend)
+        job = backend.run(transpiled_circuit)
         result = job.result()
         statevector = result.get_statevector()
         

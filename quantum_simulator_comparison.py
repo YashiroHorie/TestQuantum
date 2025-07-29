@@ -29,7 +29,8 @@ warnings.filterwarnings('ignore')
 # Import quantum libraries
 try:
     import qiskit
-    from qiskit import QuantumCircuit, execute
+    from qiskit import QuantumCircuit
+    from qiskit.compiler import transpile
     from qiskit.quantum_info import Statevector, state_fidelity
     from qiskit_aer import Aer
     QISKIT_AVAILABLE = True
@@ -171,9 +172,10 @@ class QuantumSimulatorComparison:
         # Get number of qubits
         num_qubits = circuit.num_qubits
         
-        # Execute on statevector simulator
+        # Execute on statevector simulator using new API
         backend = Aer.get_backend('statevector_simulator')
-        job = execute(circuit, backend)
+        transpiled_circuit = transpile(circuit, backend)
+        job = backend.run(transpiled_circuit)
         result = job.result()
         statevector = result.get_statevector()
         
@@ -211,7 +213,8 @@ class QuantumSimulatorComparison:
         from qiskit_aer import AerSimulator
         mps_backend = AerSimulator(method='matrix_product_state')
         
-        job = execute(circuit, mps_backend)
+        transpiled_circuit = transpile(circuit, mps_backend)
+        job = mps_backend.run(transpiled_circuit)
         result = job.result()
         statevector = result.get_statevector()
         
@@ -225,7 +228,8 @@ class QuantumSimulatorComparison:
         start_time = time.time()
         circuit = QuantumCircuit.from_qasm_file(qasm_file)
         backend = Aer.get_backend('aer_simulator')
-        job = execute(circuit, backend)
+        transpiled_circuit = transpile(circuit, backend)
+        job = backend.run(transpiled_circuit)
         result = job.result()
         statevector = result.get_statevector()
         execution_time = time.time() - start_time
