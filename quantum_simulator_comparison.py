@@ -163,7 +163,7 @@ class QuantumSimulatorComparison:
             print(f"Error reading meta file for {qasm_file}: {e}")
             return None
     
-    @run_with_timeout(timeout_seconds=300)
+    @run_with_timeout(timeout_seconds=30)
     def _run_qiskit(self, qasm_file):
         """Internal Qiskit simulation with timeout"""
         start_time = time.time()
@@ -200,7 +200,7 @@ class QuantumSimulatorComparison:
             print(f"Qiskit simulation failed for {qasm_file}: {e}")
             return None, None
     
-    @run_with_timeout(timeout_seconds=300)
+    @run_with_timeout(timeout_seconds=30)
     def _run_qiskit_mps(self, qasm_file):
         """Internal Qiskit MPS simulation with timeout"""
         start_time = time.time()
@@ -232,7 +232,7 @@ class QuantumSimulatorComparison:
         
         return statevector, execution_time
 
-    @run_with_timeout(timeout_seconds=300)
+    @run_with_timeout(timeout_seconds=30)
     def _run_qiskit_fallback(self, qasm_file):
         """Internal Qiskit fallback simulation with timeout"""
         start_time = time.time()
@@ -277,7 +277,7 @@ class QuantumSimulatorComparison:
             print(f"Qiskit GPU simulation failed for {qasm_file}: {e}")
             return None, None
 
-    @run_with_timeout(timeout_seconds=300)
+    @run_with_timeout(timeout_seconds=30)
     def _run_qiskit_gpu(self, qasm_file):
         """Internal Qiskit GPU simulation with timeout"""
         start_time = time.time()
@@ -302,7 +302,7 @@ class QuantumSimulatorComparison:
         
         return statevector, execution_time
     
-    @run_with_timeout(timeout_seconds=300)
+    @run_with_timeout(timeout_seconds=30)
     def _run_quimb(self, qasm_file):
         """Internal Quimb simulation with timeout"""
         start_time = time.time()
@@ -336,7 +336,7 @@ class QuantumSimulatorComparison:
             print(f"Quimb simulation failed for {qasm_file}: {e}")
             return None, None
     
-    @run_with_timeout(timeout_seconds=300)
+    @run_with_timeout(timeout_seconds=30)
     def _run_qsimcirq(self, qasm_file):
         """Internal QsimCirq simulation with timeout"""
         start_time = time.time()
@@ -375,7 +375,7 @@ class QuantumSimulatorComparison:
             print(f"QsimCirq simulation failed for {qasm_file}: {e}")
             return None, None
     
-    @run_with_timeout(timeout_seconds=300)
+    @run_with_timeout(timeout_seconds=30)
     def _run_tensornetwork(self, qasm_file):
         """Internal TensorNetwork simulation with timeout"""
         start_time = time.time()
@@ -818,6 +818,7 @@ class QuantumSimulatorComparison:
                 'num_gates': result['num_gates'],
                 'qiskit_time': result['qiskit_time'],
                 'qiskit_mps_time': result['qiskit_mps_time'],
+                'qiskit_gpu_time': result['qiskit_gpu_time'],
                 'quimb_time': result['quimb_time'],
                 'qsimcirq_time': result['qsimcirq_time'],
                 'tensornetwork_time': result['tensornetwork_time']
@@ -891,7 +892,7 @@ def main():
     # Run comparisons
     print("\nStarting quantum simulator comparisons...")
     print("MPS mode: Enabled")
-    print("Timeout: 300 seconds per simulation")
+    print("Timeout: 30 seconds per simulation")
     comparison.run_all_comparisons()
     
     # Generate report
