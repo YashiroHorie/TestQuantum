@@ -29,14 +29,24 @@ def main():
     print(f"Found {len(qasm_files)} QASM files")
     print("Files are sorted by increasing difficulty level")
 
-    # Select first 3 files for quick testing (lowest difficulty)
-    test_files = qasm_files[:3]
-    print(f"Testing with {len(test_files)} files (lowest difficulty):")
-    for i, file in enumerate(test_files):
-        filename = os.path.basename(file)
-        difficulty_match = re.search(r'diff=([\d.]+)', filename)
-        difficulty = difficulty_match.group(1) if difficulty_match else "unknown"
-        print(f"  {i+1}. {filename} (difficulty: {difficulty})")
+    # Find the simple circuit specifically
+    simple_circuit = None
+    for file in qasm_files:
+        if "simple_circuit_diff=-1.000_PUBLIC_simple3" in file:
+            simple_circuit = file
+            break
+    
+    if not simple_circuit:
+        print("Simple circuit not found, using first file instead")
+        simple_circuit = qasm_files[0]
+    
+    # Test with only the simple circuit
+    test_files = [simple_circuit]
+    print(f"Testing with simple circuit:")
+    filename = os.path.basename(simple_circuit)
+    difficulty_match = re.search(r'diff=([\d.]+)', filename)
+    difficulty = difficulty_match.group(1) if difficulty_match else "unknown"
+    print(f"  {filename} (difficulty: {difficulty})")
     
     print("\n" + "="*50)
     print("Running comparisons...")
