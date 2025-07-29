@@ -29,8 +29,9 @@ warnings.filterwarnings('ignore')
 # Import quantum libraries
 try:
     import qiskit
-    from qiskit import QuantumCircuit, Aer, execute
+    from qiskit import QuantumCircuit, execute
     from qiskit.quantum_info import Statevector, state_fidelity
+    from qiskit_aer import Aer
     QISKIT_AVAILABLE = True
 except ImportError:
     QISKIT_AVAILABLE = False
