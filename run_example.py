@@ -65,6 +65,7 @@ def main():
             print(f"  Gates: {result['num_gates']}")
             print(f"  Qiskit (Statevector) time: {result['qiskit_time']:.4f}s" if result['qiskit_time'] else "  Qiskit (Statevector) time: N/A")
             print(f"  Qiskit (MPS) time: {result['qiskit_mps_time']:.4f}s" if result['qiskit_mps_time'] else "  Qiskit (MPS) time: N/A")
+            print(f"  Qiskit (GPU) time: {result['qiskit_gpu_time']:.4f}s" if result['qiskit_gpu_time'] else "  Qiskit (GPU) time: N/A")
             print(f"  QsimCirq time: {result['qsimcirq_time']:.4f}s" if result['qsimcirq_time'] else "  QsimCirq time: N/A")
             
             # Print expected values if available

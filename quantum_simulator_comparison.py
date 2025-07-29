@@ -107,12 +107,14 @@ def run_with_timeout(timeout_seconds=300):
 
 
 class QuantumSimulatorComparison:
-    def __init__(self, circuits_dir="sample_circuits", enable_mps=True):
+    def __init__(self, circuits_dir="sample_circuits", enable_mps=True, enable_gpu=True):
         self.circuits_dir = circuits_dir
         self.results = []
         self.converter = QASMConverter() if QASM_CONVERTER_AVAILABLE else None
         self.enable_mps = enable_mps
-        
+        self.enable_gpu = enable_gpu
+        print(f"Initialized with MPS: {enable_mps}, GPU: {enable_gpu}")
+
     def find_qasm_files(self):
         """Find all QASM files in the circuits directory, sorted by difficulty"""
         qasm_files = []
@@ -263,6 +265,42 @@ class QuantumSimulatorComparison:
             except Exception as e2:
                 print(f"Qiskit MPS fallback also failed: {e2}")
                 return None, None
+
+    def run_qiskit_gpu_simulation(self, qasm_file):
+        """Run simulation using Qiskit Aer GPU simulator"""
+        if not QISKIT_AVAILABLE:
+            return None, None
+        
+        try:
+            return self._run_qiskit_gpu(qasm_file)
+        except Exception as e:
+            print(f"Qiskit GPU simulation failed for {qasm_file}: {e}")
+            return None, None
+
+    @run_with_timeout(timeout_seconds=300)
+    def _run_qiskit_gpu(self, qasm_file):
+        """Internal Qiskit GPU simulation with timeout"""
+        start_time = time.time()
+        
+        # Load QASM file
+        circuit = QuantumCircuit.from_qasm_file(qasm_file)
+        
+        # Execute on GPU simulator
+        from qiskit_aer import AerSimulator
+        gpu_backend = AerSimulator(method='statevector', device='GPU')
+        
+        transpiled_circuit = transpile(circuit, gpu_backend)
+        job = gpu_backend.run(transpiled_circuit)
+        result = job.result()
+        statevector = result.get_statevector()
+        
+        # Convert Statevector object to numpy array if needed
+        if hasattr(statevector, 'data'):
+            statevector = statevector.data
+        
+        execution_time = time.time() - start_time
+        
+        return statevector, execution_time
     
     @run_with_timeout(timeout_seconds=300)
     def _run_quimb(self, qasm_file):
@@ -469,16 +507,29 @@ class QuantumSimulatorComparison:
             print("\nStep 3: Skipping Qiskit MPS simulation (disabled)")
             qiskit_mps_state, qiskit_mps_time = None, None
             
-        # Step 4: Run Quimb simulation
-        print("\nStep 4: Running Quimb simulation...")
+        # Step 4: Run GPU simulation (if enabled)
+        if self.enable_gpu:
+            print("\nStep 4: Running Qiskit (GPU) simulation...")
+            qiskit_gpu_state, qiskit_gpu_time = self.run_qiskit_gpu_simulation(qasm_file)
+            if qiskit_gpu_state is not None:
+                print(f"  ✓ Qiskit GPU simulation completed in {qiskit_gpu_time:.4f}s")
+                print(f"    Statevector shape: {qiskit_gpu_state.shape}")
+            else:
+                print("  ✗ Qiskit GPU simulation failed")
+        else:
+            print("\nStep 4: Skipping Qiskit GPU simulation (disabled)")
+            qiskit_gpu_state, qiskit_gpu_time = None, None
+            
+        # Step 5: Run Quimb simulation
+        print("\nStep 5: Running Quimb simulation...")
         quimb_state, quimb_time = self.run_quimb_simulation(qasm_file)
         if quimb_time is not None:
             print(f"  ✓ Quimb simulation completed in {quimb_time:.4f}s")
         else:
             print("  ✗ Quimb simulation failed")
         
-        # Step 5: Run QsimCirq simulation
-        print("\nStep 5: Running QsimCirq simulation...")
+        # Step 6: Run QsimCirq simulation
+        print("\nStep 6: Running QsimCirq simulation...")
         qsimcirq_state, qsimcirq_time = self.run_qsimcirq_simulation(qasm_file)
         if qsimcirq_state is not None:
             print(f"  ✓ QsimCirq simulation completed in {qsimcirq_time:.4f}s")
@@ -486,16 +537,16 @@ class QuantumSimulatorComparison:
         else:
             print("  ✗ QsimCirq simulation failed")
         
-        # Step 6: Run TensorNetwork simulation
-        print("\nStep 6: Running TensorNetwork simulation...")
+        # Step 7: Run TensorNetwork simulation
+        print("\nStep 7: Running TensorNetwork simulation...")
         tensornetwork_state, tensornetwork_time = self.run_tensornetwork_simulation(qasm_file)
         if tensornetwork_time is not None:
             print(f"  ✓ TensorNetwork simulation completed in {tensornetwork_time:.4f}s")
         else:
             print("  ✗ TensorNetwork simulation failed")
         
-        # Step 7: Get circuit information
-        print("\nStep 7: Extracting circuit information...")
+        # Step 8: Get circuit information
+        print("\nStep 8: Extracting circuit information...")
         try:
             circuit = QuantumCircuit.from_qasm_file(qasm_file)
             num_qubits = circuit.num_qubits
@@ -506,14 +557,18 @@ class QuantumSimulatorComparison:
             num_qubits = None
             num_gates = None
         
-        # Step 8: Calculate fidelities
-        print("\nStep 8: Calculating fidelities between simulators...")
+        # Step 9: Calculate fidelities
+        print("\nStep 9: Calculating fidelities between simulators...")
         fidelities = {}
         if qiskit_state is not None:
             if qiskit_mps_state is not None:
                 fidelity = self.calculate_fidelity(qiskit_state, qiskit_mps_state)
                 fidelities['qiskit_qiskit_mps'] = fidelity
                 print(f"  ✓ Qiskit vs Qiskit MPS fidelity: {fidelity:.6f}" if fidelity else "  ✗ Fidelity calculation failed")
+            if qiskit_gpu_state is not None:
+                fidelity = self.calculate_fidelity(qiskit_state, qiskit_gpu_state)
+                fidelities['qiskit_qiskit_gpu'] = fidelity
+                print(f"  ✓ Qiskit vs Qiskit GPU fidelity: {fidelity:.6f}" if fidelity else "  ✗ Fidelity calculation failed")
             if quimb_state is not None:
                 fidelity = self.calculate_fidelity(qiskit_state, quimb_state)
                 fidelities['qiskit_quimb'] = fidelity
@@ -555,6 +610,10 @@ class QuantumSimulatorComparison:
                 accuracy = self.calculate_target_accuracy(qiskit_mps_state, target_state)
                 target_accuracies['qiskit_mps_target'] = accuracy
                 print(f"  ✓ Qiskit MPS target accuracy: {accuracy:.8f}" if accuracy else "  ✗ Target accuracy calculation failed")
+            if qiskit_gpu_state is not None:
+                accuracy = self.calculate_target_accuracy(qiskit_gpu_state, target_state)
+                target_accuracies['qiskit_gpu_target'] = accuracy
+                print(f"  ✓ Qiskit GPU target accuracy: {accuracy:.8f}" if accuracy else "  ✗ Target accuracy calculation failed")
             if qsimcirq_state is not None:
                 accuracy = self.calculate_target_accuracy(qsimcirq_state, target_state)
                 target_accuracies['qsimcirq_target'] = accuracy
@@ -570,6 +629,7 @@ class QuantumSimulatorComparison:
             'num_gates': num_gates,
             'qiskit_time': qiskit_time,
             'qiskit_mps_time': qiskit_mps_time,
+            'qiskit_gpu_time': qiskit_gpu_time,
             'quimb_time': quimb_time,
             'qsimcirq_time': qsimcirq_time,
             'tensornetwork_time': tensornetwork_time,
@@ -590,6 +650,7 @@ class QuantumSimulatorComparison:
         print(f"  Gates: {num_gates}")
         print(f"  Qiskit time: {qiskit_time:.4f}s" if qiskit_time else "  Qiskit time: N/A")
         print(f"  Qiskit MPS time: {qiskit_mps_time:.4f}s" if qiskit_mps_time else "  Qiskit MPS time: N/A")
+        print(f"  Qiskit GPU time: {qiskit_gpu_time:.4f}s" if qiskit_gpu_time else "  Qiskit GPU time: N/A")
         print(f"  QsimCirq time: {qsimcirq_time:.4f}s" if qsimcirq_time else "  QsimCirq time: N/A")
         
         if expected_data:
@@ -646,7 +707,7 @@ class QuantumSimulatorComparison:
         # Timing comparison
         print("\nTIMING COMPARISON:")
         print("-" * 40)
-        timing_cols = ['qiskit_time', 'qiskit_mps_time', 'quimb_time', 'qsimcirq_time', 'tensornetwork_time']
+        timing_cols = ['qiskit_time', 'qiskit_mps_time', 'qiskit_gpu_time', 'quimb_time', 'qsimcirq_time', 'tensornetwork_time']
         for col in timing_cols:
             if col in df.columns:
                 valid_times = df[col].dropna()

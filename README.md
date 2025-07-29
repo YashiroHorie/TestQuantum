@@ -6,6 +6,7 @@ This tool compares different quantum simulators by running QASM files and analyz
 
 - **Qiskit Aer (Statevector)** - IBM's quantum simulator (statevector_simulator)
 - **Qiskit Aer (MPS)** - IBM's Matrix Product State simulator (aer_simulator with MPS method)
+- **Qiskit Aer (GPU)** - IBM's GPU-accelerated quantum simulator (aer_simulator with GPU device)
 - **Quimb** - Tensor network-based quantum simulator
 - **QsimCirq** - Google's quantum simulator
 - **TensorNetwork** - Tensor network library for quantum computing
