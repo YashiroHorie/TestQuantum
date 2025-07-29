@@ -248,10 +248,6 @@ class QuantumSimulatorComparison:
         num_qubits = circuit.num_qubits
         
         # Execute on MPS simulator
-        # Use aer_simulator with MPS method for better performance on certain circuits
-        backend = Aer.get_backend('aer_simulator')
-        
-        # Configure for MPS simulation
         from qiskit_aer import AerSimulator
         mps_backend = AerSimulator(method='matrix_product_state')
         
@@ -268,23 +264,7 @@ class QuantumSimulatorComparison:
         
         return statevector, execution_time
 
-    @run_with_timeout(timeout_seconds=30)
-    def _run_qiskit_fallback(self, qasm_file):
-        """Internal Qiskit fallback simulation with timeout"""
-        start_time = time.time()
-        circuit = QuantumCircuit.from_qasm_file(qasm_file)
-        backend = Aer.get_backend('aer_simulator')
-        transpiled_circuit = transpile(circuit, backend)
-        job = backend.run(transpiled_circuit)
-        result = job.result()
-        statevector = result.get_statevector()
-        
-        # Convert Statevector object to numpy array if needed
-        if hasattr(statevector, 'data'):
-            statevector = statevector.data
-        
-        execution_time = time.time() - start_time
-        return statevector, execution_time
+
 
     def run_qiskit_mps_simulation(self, qasm_file):
         """Run simulation using Qiskit Aer MPS simulator"""
@@ -298,15 +278,7 @@ class QuantumSimulatorComparison:
             return None, None
         except Exception as e:
             print(f"  ✗ Qiskit MPS simulation failed: {e}")
-            # Fallback to regular aer_simulator if MPS fails
-            try:
-                return self._run_qiskit_fallback(qasm_file)
-            except TimeoutError:
-                print(f"  ⏰ Qiskit MPS fallback also timed out (>30s), skipping...")
-                return None, None
-            except Exception as e2:
-                print(f"  ✗ Qiskit MPS fallback also failed: {e2}")
-                return None, None
+            return None, None
 
     def run_qiskit_gpu_simulation(self, qasm_file):
         """Run simulation using Qiskit Aer GPU simulator"""
@@ -940,12 +912,13 @@ def main():
     print(f"  QsimCirq: {'✓' if QSIMCIRQ_AVAILABLE else '✗'}")
     print(f"  TensorNetwork: {'✓' if TENSORNETWORK_AVAILABLE else '✗'}")
     
-    # Create comparison object with MPS enabled
-    comparison = QuantumSimulatorComparison(enable_mps=True)
+    # Create comparison object with MPS and GPU enabled
+    comparison = QuantumSimulatorComparison(enable_mps=True, enable_gpu=True)
     
     # Run comparisons
     print("\nStarting quantum simulator comparisons...")
     print("MPS mode: Enabled")
+    print("GPU mode: Enabled")
     print("Timeout: 30 seconds per simulation")
     comparison.run_all_comparisons()
     

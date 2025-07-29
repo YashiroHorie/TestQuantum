@@ -5,11 +5,13 @@ This tool compares different quantum simulators by running QASM files and analyz
 ## Supported Simulators
 
 - **Qiskit Aer (Statevector)** - IBM's quantum simulator (statevector_simulator)
-- **Qiskit Aer (MPS)** - IBM's Matrix Product State simulator (aer_simulator with MPS method)
-- **Qiskit Aer (GPU)** - IBM's GPU-accelerated quantum simulator (aer_simulator with GPU device)
+- **Qiskit Aer (MPS)** - IBM's Matrix Product State simulator (AerSimulator with MPS method)
+- **Qiskit Aer (GPU)** - IBM's GPU-accelerated quantum simulator (AerSimulator with GPU device)
 - **Quimb** - Tensor network-based quantum simulator
 - **QsimCirq** - Google's quantum simulator
 - **TensorNetwork** - Tensor network library for quantum computing
+
+**Note**: MPS and GPU simulators are optional and can be enabled/disabled via the `enable_mps` and `enable_gpu` parameters.
 
 ## Features
 
