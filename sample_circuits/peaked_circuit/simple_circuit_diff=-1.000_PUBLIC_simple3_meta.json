@@ -1,6 +1,6 @@
 {
-    "circuit_file": "simple_circuit_3qubits.qasm",
-    "difficulty_level": 0.0,
+    "circuit_file": "simple_circuit_diff=-1.000_PUBLIC_simple3.qasm",
+    "difficulty_level": -1.0,
     "seed": 12345,
     "ident": "simple3",
     "num_qubits": 3,
