@@ -81,7 +81,7 @@ def timeout_handler(signum, frame):
     raise TimeoutError("Operation timed out")
 
 
-def run_with_timeout(timeout_seconds=300):
+def run_with_timeout(timeout_seconds=30):
     """Decorator to run a function with a timeout"""
     def decorator(func):
         def wrapper(*args, **kwargs):
