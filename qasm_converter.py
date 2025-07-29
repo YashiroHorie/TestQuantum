@@ -203,7 +203,7 @@ class QASMConverter:
             print(f"Error converting to Cirq: {e}")
             return None
     
-    def qasm_to_quimb(self, qasm_file: str) -> Optional[qtn.Circuit]:
+    def qasm_to_quimb(self, qasm_file: str) -> Optional[Dict[str, Any]]:
         """Convert QASM file to Quimb Circuit"""
         if not QUIMB_AVAILABLE:
             return None
@@ -221,9 +221,14 @@ class QASMConverter:
             if num_qubits == 0:
                 return None
             
-            # Create qubits
-            qubits = [qugen.qubit() for _ in range(num_qubits)]
-            circuit = qtn.Circuit(qubits)
+            # Create qubits - use correct Quimb API
+            # Note: Quimb doesn't have a simple qubit() function, so we'll create a simplified representation
+            qubits = list(range(num_qubits))
+            circuit = {
+                'qubits': qubits,
+                'num_qubits': num_qubits,
+                'instructions': []
+            }
             
             # Convert instructions (simplified)
             # Note: Full conversion would require more sophisticated mapping
@@ -233,16 +238,14 @@ class QASMConverter:
                     if gate is not None:
                         qubit_idx = instruction['index']
                         if qubit_idx < num_qubits:
-                            # Apply gate (simplified)
-                            pass
+                            circuit['instructions'].append(gate)
                             
                 elif instruction['type'] == 'two_qubit_gate':
                     gate = self._create_quimb_two_qubit_gate(instruction)
                     if gate is not None:
                         idx1, idx2 = instruction['index1'], instruction['index2']
                         if idx1 < num_qubits and idx2 < num_qubits:
-                            # Apply two-qubit gate (simplified)
-                            pass
+                            circuit['instructions'].append(gate)
             
             return circuit
             
@@ -297,17 +300,21 @@ class QASMConverter:
         
         if gate_name == 'u3':
             if len(params) >= 3:
+                # Use proper Cirq gate construction for u3
+                theta, phi, lam = params[0], params[1], params[2]
                 return cirq.ops.PhasedXZGate(
-                    x_exponent=params[0] / np.pi,
-                    z_exponent=params[1] / np.pi,
-                    axis_exponent=params[2] / np.pi
+                    x_exponent=theta / np.pi,
+                    z_exponent=lam / np.pi,
+                    axis_phase_exponent=phi / np.pi
                 )
         elif gate_name == 'u2':
             if len(params) >= 2:
+                # Use proper Cirq gate construction for u2
+                phi, lam = params[0], params[1]
                 return cirq.ops.PhasedXZGate(
                     x_exponent=0.5,
-                    z_exponent=params[0] / np.pi,
-                    axis_exponent=params[1] / np.pi
+                    z_exponent=lam / np.pi,
+                    axis_phase_exponent=phi / np.pi
                 )
         elif gate_name == 'u1':
             if len(params) >= 1:

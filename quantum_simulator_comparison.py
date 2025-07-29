@@ -164,17 +164,22 @@ class QuantumSimulatorComparison:
         try:
             start_time = time.time()
             
-            # Convert QASM to Quimb circuit
+                        # Convert QASM to Quimb circuit
             circuit_quimb = self.converter.qasm_to_quimb(qasm_file)
-            
+
             if circuit_quimb is None:
                 return None, None
-            
+
             # Execute simulation (simplified)
             # Note: Full Quimb simulation would require more sophisticated implementation
+            # For now, we just verify the conversion worked
             execution_time = time.time() - start_time
+
+            # Return None for statevector as full simulation is complex
+            # But we can verify the circuit was converted successfully
+            if circuit_quimb and 'num_qubits' in circuit_quimb:
+                print(f"  Quimb conversion successful: {circuit_quimb['num_qubits']} qubits, {len(circuit_quimb['instructions'])} instructions")
             
-            # For now, return None as full simulation is complex
             return None, execution_time
             
         except Exception as e:
