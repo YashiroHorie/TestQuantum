@@ -25,6 +25,8 @@ import json
 import re
 import signal
 import threading
+import multiprocessing
+import functools
 warnings.filterwarnings('ignore')
 
 # Import quantum libraries
@@ -78,31 +80,45 @@ class TimeoutError(Exception):
 
 
 def run_with_timeout(timeout_seconds=30):
-    """Decorator to run a function with a timeout using threading"""
+    """Decorator to run a function with a timeout using multiprocessing"""
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            result = [None]
-            exception = [None]
+            # Create a queue to get results from the process
+            result_queue = multiprocessing.Queue()
             
             def target():
                 try:
-                    result[0] = func(*args, **kwargs)
+                    result = func(*args, **kwargs)
+                    result_queue.put(('success', result))
                 except Exception as e:
-                    exception[0] = e
+                    result_queue.put(('error', str(e)))
             
-            thread = threading.Thread(target=target)
-            thread.daemon = True
-            thread.start()
-            thread.join(timeout_seconds)
+            # Start the process
+            process = multiprocessing.Process(target=target)
+            process.start()
             
-            if thread.is_alive():
-                print(f"  ⏰ Timeout after {timeout_seconds}s")
+            # Wait for the process to complete or timeout
+            process.join(timeout_seconds)
+            
+            if process.is_alive():
+                # Force terminate the process
+                process.terminate()
+                process.join(1)  # Give it 1 second to terminate gracefully
+                if process.is_alive():
+                    process.kill()  # Force kill if still alive
+                print(f"  ⏰ Timeout after {timeout_seconds}s - process terminated")
                 return None, None
             
-            if exception[0]:
-                raise exception[0]
+            # Get result from queue
+            if not result_queue.empty():
+                status, result = result_queue.get()
+                if status == 'success':
+                    return result
+                else:
+                    raise Exception(result)
             
-            return result[0]
+            return None, None
         
         return wrapper
     return decorator
@@ -165,7 +181,6 @@ class QuantumSimulatorComparison:
             print(f"Error reading meta file for {qasm_file}: {e}")
             return None
     
-    @run_with_timeout(timeout_seconds=30)
     def _run_qiskit(self, qasm_file):
         """Internal Qiskit simulation with timeout"""
         start_time = time.time()
@@ -196,14 +211,30 @@ class QuantumSimulatorComparison:
         if not QISKIT_AVAILABLE:
             return None, None
         
-        try:
-            return self._run_qiskit(qasm_file)
-        except TimeoutError:
+        # Use threading-based timeout
+        result = [None]
+        exception = [None]
+        
+        def run_simulation():
+            try:
+                result[0] = self._run_qiskit(qasm_file)
+            except Exception as e:
+                exception[0] = e
+        
+        thread = threading.Thread(target=run_simulation)
+        thread.daemon = True
+        thread.start()
+        thread.join(30)  # 30 second timeout
+        
+        if thread.is_alive():
             print(f"  ⏰ Qiskit simulation timed out (>30s), skipping...")
             return None, None
-        except Exception as e:
-            print(f"  ✗ Qiskit simulation failed: {e}")
+        
+        if exception[0]:
+            print(f"  ✗ Qiskit simulation failed: {exception[0]}")
             return None, None
+        
+        return result[0]
     
     @run_with_timeout(timeout_seconds=30)
     def _run_qiskit_mps(self, qasm_file):
