@@ -18,7 +18,7 @@ def test_simple_circuit():
     qasm_files = comparison.find_qasm_files()
     simple_circuit = None
     for file in qasm_files:
-        if "simple_circuit_diff=-1.000_PUBLIC_simple3" in file:
+        if "peaked_circuit_diff=0.000_PUBLIC_3fcf1712" in file:
             simple_circuit = file
             break
     
