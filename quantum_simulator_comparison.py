@@ -23,6 +23,7 @@ from pathlib import Path
 import warnings
 import json
 import re
+import signal
 warnings.filterwarnings('ignore')
 
 # Import quantum libraries
@@ -66,6 +67,39 @@ try:
 except ImportError:
     QASM_CONVERTER_AVAILABLE = False
     print("Warning: QASM converter not available")
+
+
+class TimeoutError(Exception):
+    """Custom timeout exception"""
+    pass
+
+
+def timeout_handler(signum, frame):
+    """Signal handler for timeout"""
+    raise TimeoutError("Operation timed out")
+
+
+def run_with_timeout(func, timeout_seconds=300):
+    """Run a function with a timeout"""
+    def wrapper(*args, **kwargs):
+        # Set up signal handler for timeout
+        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_seconds)
+        
+        try:
+            result = func(*args, **kwargs)
+            signal.alarm(0)  # Cancel the alarm
+            return result
+        except TimeoutError:
+            print(f"  ⏰ Timeout after {timeout_seconds}s")
+            return None, None
+        except Exception as e:
+            signal.alarm(0)  # Cancel the alarm
+            raise e
+        finally:
+            signal.signal(signal.SIGALRM, old_handler)
+    
+    return wrapper
 
 
 class QuantumSimulatorComparison:
@@ -127,8 +161,9 @@ class QuantumSimulatorComparison:
         """Run simulation using Qiskit Aer statevector simulator"""
         if not QISKIT_AVAILABLE:
             return None, None
-            
-        try:
+        
+        @run_with_timeout(timeout_seconds=300)
+        def _run_qiskit():
             start_time = time.time()
             
             # Load QASM file
@@ -146,7 +181,9 @@ class QuantumSimulatorComparison:
             execution_time = time.time() - start_time
             
             return statevector, execution_time
-            
+        
+        try:
+            return _run_qiskit()
         except Exception as e:
             print(f"Qiskit simulation failed for {qasm_file}: {e}")
             return None, None
@@ -155,8 +192,9 @@ class QuantumSimulatorComparison:
         """Run simulation using Qiskit Aer MPS simulator"""
         if not QISKIT_AVAILABLE:
             return None, None
-            
-        try:
+        
+        @run_with_timeout(timeout_seconds=300)
+        def _run_qiskit_mps():
             start_time = time.time()
             
             # Load QASM file
@@ -180,18 +218,25 @@ class QuantumSimulatorComparison:
             execution_time = time.time() - start_time
             
             return statevector, execution_time
-            
+        
+        try:
+            return _run_qiskit_mps()
         except Exception as e:
             print(f"Qiskit MPS simulation failed for {qasm_file}: {e}")
             # Fallback to regular aer_simulator if MPS fails
             try:
-                backend = Aer.get_backend('aer_simulator')
-                job = execute(circuit, backend)
-                result = job.result()
-                statevector = result.get_statevector()
+                @run_with_timeout(timeout_seconds=300)
+                def _run_fallback():
+                    start_time = time.time()
+                    circuit = QuantumCircuit.from_qasm_file(qasm_file)
+                    backend = Aer.get_backend('aer_simulator')
+                    job = execute(circuit, backend)
+                    result = job.result()
+                    statevector = result.get_statevector()
+                    execution_time = time.time() - start_time
+                    return statevector, execution_time
                 
-                execution_time = time.time() - start_time
-                return statevector, execution_time
+                return _run_fallback()
                 
             except Exception as e2:
                 print(f"Qiskit MPS fallback also failed: {e2}")
@@ -201,11 +246,12 @@ class QuantumSimulatorComparison:
         """Run simulation using Quimb"""
         if not QUIMB_AVAILABLE or self.converter is None:
             return None, None
-            
-        try:
+        
+        @run_with_timeout(timeout_seconds=300)
+        def _run_quimb():
             start_time = time.time()
             
-                        # Convert QASM to Quimb circuit
+            # Convert QASM to Quimb circuit
             circuit_quimb = self.converter.qasm_to_quimb(qasm_file)
 
             if circuit_quimb is None:
@@ -222,7 +268,9 @@ class QuantumSimulatorComparison:
                 print(f"  Quimb conversion successful: {circuit_quimb['num_qubits']} qubits, {len(circuit_quimb['instructions'])} instructions")
             
             return None, execution_time
-            
+        
+        try:
+            return _run_quimb()
         except Exception as e:
             print(f"Quimb simulation failed for {qasm_file}: {e}")
             return None, None
@@ -231,16 +279,17 @@ class QuantumSimulatorComparison:
         """Run simulation using QsimCirq"""
         if not QSIMCIRQ_AVAILABLE or self.converter is None:
             return None, None
-            
-        try:
+        
+        @run_with_timeout(timeout_seconds=300)
+        def _run_qsimcirq():
             start_time = time.time()
             
             # Convert QASM to Cirq circuit
             circuit_cirq = self.converter.qasm_to_cirq(qasm_file)
-            
+
             if circuit_cirq is None:
                 return None, None
-            
+
             # Execute simulation using QsimCirq
             try:
                 # Create QsimCirq simulator
@@ -257,7 +306,9 @@ class QuantumSimulatorComparison:
                 print(f"QsimCirq execution failed: {e}")
                 execution_time = time.time() - start_time
                 return None, execution_time
-            
+        
+        try:
+            return _run_qsimcirq()
         except Exception as e:
             print(f"QsimCirq simulation failed for {qasm_file}: {e}")
             return None, None
@@ -266,8 +317,9 @@ class QuantumSimulatorComparison:
         """Run simulation using TensorNetwork"""
         if not TENSORNETWORK_AVAILABLE or self.converter is None:
             return None, None
-            
-        try:
+        
+        @run_with_timeout(timeout_seconds=300)
+        def _run_tensornetwork():
             start_time = time.time()
             
             # Convert QASM to TensorNetwork representation
@@ -282,7 +334,9 @@ class QuantumSimulatorComparison:
             
             # For now, return None as full simulation is complex
             return None, execution_time
-            
+        
+        try:
+            return _run_tensornetwork()
         except Exception as e:
             print(f"TensorNetwork simulation failed for {qasm_file}: {e}")
             return None, None
@@ -650,6 +704,7 @@ def main():
     # Run comparisons
     print("\nStarting quantum simulator comparisons...")
     print("MPS mode: Enabled")
+    print("Timeout: 300 seconds per simulation")
     comparison.run_all_comparisons()
     
     # Generate report
