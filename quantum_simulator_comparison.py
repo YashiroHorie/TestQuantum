@@ -179,6 +179,10 @@ class QuantumSimulatorComparison:
         result = job.result()
         statevector = result.get_statevector()
         
+        # Convert Statevector object to numpy array if needed
+        if hasattr(statevector, 'data'):
+            statevector = statevector.data
+        
         execution_time = time.time() - start_time
         
         return statevector, execution_time
@@ -218,6 +222,10 @@ class QuantumSimulatorComparison:
         result = job.result()
         statevector = result.get_statevector()
         
+        # Convert Statevector object to numpy array if needed
+        if hasattr(statevector, 'data'):
+            statevector = statevector.data
+        
         execution_time = time.time() - start_time
         
         return statevector, execution_time
@@ -232,6 +240,11 @@ class QuantumSimulatorComparison:
         job = backend.run(transpiled_circuit)
         result = job.result()
         statevector = result.get_statevector()
+        
+        # Convert Statevector object to numpy array if needed
+        if hasattr(statevector, 'data'):
+            statevector = statevector.data
+        
         execution_time = time.time() - start_time
         return statevector, execution_time
 

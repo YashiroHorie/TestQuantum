@@ -106,9 +106,16 @@ def test_statevector_simulation():
         result = job.result()
         statevector = result.get_statevector()
         
+        # Handle new Statevector object type
+        if hasattr(statevector, 'data'):
+            statevector_array = statevector.data
+        else:
+            statevector_array = statevector
+        
         print("✓ Statevector simulation completed")
-        print(f"  Statevector shape: {statevector.shape}")
-        print(f"  First few amplitudes: {statevector[:4]}")
+        print(f"  Statevector type: {type(statevector)}")
+        print(f"  Statevector shape: {statevector_array.shape}")
+        print(f"  First few amplitudes: {statevector_array[:4]}")
         
         return True
         
