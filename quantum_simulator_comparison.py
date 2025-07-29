@@ -196,8 +196,11 @@ class QuantumSimulatorComparison:
         
         try:
             return self._run_qiskit(qasm_file)
+        except TimeoutError:
+            print(f"  ⏰ Qiskit simulation timed out (>30s), skipping...")
+            return None, None
         except Exception as e:
-            print(f"Qiskit simulation failed for {qasm_file}: {e}")
+            print(f"  ✗ Qiskit simulation failed: {e}")
             return None, None
     
     @run_with_timeout(timeout_seconds=30)
@@ -257,13 +260,19 @@ class QuantumSimulatorComparison:
         
         try:
             return self._run_qiskit_mps(qasm_file)
+        except TimeoutError:
+            print(f"  ⏰ Qiskit MPS simulation timed out (>30s), skipping...")
+            return None, None
         except Exception as e:
-            print(f"Qiskit MPS simulation failed for {qasm_file}: {e}")
+            print(f"  ✗ Qiskit MPS simulation failed: {e}")
             # Fallback to regular aer_simulator if MPS fails
             try:
                 return self._run_qiskit_fallback(qasm_file)
+            except TimeoutError:
+                print(f"  ⏰ Qiskit MPS fallback also timed out (>30s), skipping...")
+                return None, None
             except Exception as e2:
-                print(f"Qiskit MPS fallback also failed: {e2}")
+                print(f"  ✗ Qiskit MPS fallback also failed: {e2}")
                 return None, None
 
     def run_qiskit_gpu_simulation(self, qasm_file):
@@ -273,8 +282,11 @@ class QuantumSimulatorComparison:
         
         try:
             return self._run_qiskit_gpu(qasm_file)
+        except TimeoutError:
+            print(f"  ⏰ Qiskit GPU simulation timed out (>30s), skipping...")
+            return None, None
         except Exception as e:
-            print(f"Qiskit GPU simulation failed for {qasm_file}: {e}")
+            print(f"  ✗ Qiskit GPU simulation failed: {e}")
             return None, None
 
     @run_with_timeout(timeout_seconds=30)
@@ -332,8 +344,11 @@ class QuantumSimulatorComparison:
         
         try:
             return self._run_quimb(qasm_file)
+        except TimeoutError:
+            print(f"  ⏰ Quimb simulation timed out (>30s), skipping...")
+            return None, None
         except Exception as e:
-            print(f"Quimb simulation failed for {qasm_file}: {e}")
+            print(f"  ✗ Quimb simulation failed: {e}")
             return None, None
     
     @run_with_timeout(timeout_seconds=30)
@@ -371,8 +386,11 @@ class QuantumSimulatorComparison:
         
         try:
             return self._run_qsimcirq(qasm_file)
+        except TimeoutError:
+            print(f"  ⏰ QsimCirq simulation timed out (>30s), skipping...")
+            return None, None
         except Exception as e:
-            print(f"QsimCirq simulation failed for {qasm_file}: {e}")
+            print(f"  ✗ QsimCirq simulation failed: {e}")
             return None, None
     
     @run_with_timeout(timeout_seconds=30)
@@ -400,8 +418,11 @@ class QuantumSimulatorComparison:
         
         try:
             return self._run_tensornetwork(qasm_file)
+        except TimeoutError:
+            print(f"  ⏰ TensorNetwork simulation timed out (>30s), skipping...")
+            return None, None
         except Exception as e:
-            print(f"TensorNetwork simulation failed for {qasm_file}: {e}")
+            print(f"  ✗ TensorNetwork simulation failed: {e}")
             return None, None
     
     def calculate_fidelity(self, state1, state2):
