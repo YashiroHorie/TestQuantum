@@ -1,0 +1,19 @@
+# Core dependencies
+numpy>=1.21.0
+pandas>=1.3.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Quantum computing libraries
+qiskit>=0.34.0
+qiskit-aer>=0.11.0
+
+# Alternative quantum simulators
+quimb>=1.4.0
+qsimcirq>=0.13.0
+cirq>=1.0.0
+tensornetwork>=0.4.0
+
+# Additional utilities
+scipy>=1.7.0
+tqdm>=4.62.0 
