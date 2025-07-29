@@ -437,59 +437,133 @@ class QuantumSimulatorComparison:
     def run_comparison(self, qasm_file):
         """Run comparison for a single QASM file"""
         print(f"Processing: {qasm_file}")
+        print("=" * 60)
         
-        # Get expected values from meta.json
+        # Step 1: Get expected values from meta.json
+        print("Step 1: Extracting expected values from meta.json...")
         expected_data = self.get_expected_value(qasm_file)
-        
-        # Run simulations
-        qiskit_state, qiskit_time = self.run_qiskit_simulation(qasm_file)
-        
-        # Run MPS simulation only if enabled
-        if self.enable_mps:
-            qiskit_mps_state, qiskit_mps_time = self.run_qiskit_mps_simulation(qasm_file)
+        if expected_data:
+            print(f"  ✓ Found meta data: target_state='{expected_data.get('target_state')}', difficulty={expected_data.get('difficulty_level')}")
         else:
+            print("  ⚠ No meta.json file found")
+        
+        # Step 2: Run Qiskit simulation
+        print("\nStep 2: Running Qiskit (Statevector) simulation...")
+        qiskit_state, qiskit_time = self.run_qiskit_simulation(qasm_file)
+        if qiskit_state is not None:
+            print(f"  ✓ Qiskit simulation completed in {qiskit_time:.4f}s")
+            print(f"    Statevector shape: {qiskit_state.shape}")
+        else:
+            print("  ✗ Qiskit simulation failed")
+        
+        # Step 3: Run MPS simulation (if enabled)
+        if self.enable_mps:
+            print("\nStep 3: Running Qiskit (MPS) simulation...")
+            qiskit_mps_state, qiskit_mps_time = self.run_qiskit_mps_simulation(qasm_file)
+            if qiskit_mps_state is not None:
+                print(f"  ✓ Qiskit MPS simulation completed in {qiskit_mps_time:.4f}s")
+                print(f"    Statevector shape: {qiskit_mps_state.shape}")
+            else:
+                print("  ✗ Qiskit MPS simulation failed")
+        else:
+            print("\nStep 3: Skipping Qiskit MPS simulation (disabled)")
             qiskit_mps_state, qiskit_mps_time = None, None
             
+        # Step 4: Run Quimb simulation
+        print("\nStep 4: Running Quimb simulation...")
         quimb_state, quimb_time = self.run_quimb_simulation(qasm_file)
-        qsimcirq_state, qsimcirq_time = self.run_qsimcirq_simulation(qasm_file)
-        tensornetwork_state, tensornetwork_time = self.run_tensornetwork_simulation(qasm_file)
+        if quimb_time is not None:
+            print(f"  ✓ Quimb simulation completed in {quimb_time:.4f}s")
+        else:
+            print("  ✗ Quimb simulation failed")
         
-        # Get circuit info
+        # Step 5: Run QsimCirq simulation
+        print("\nStep 5: Running QsimCirq simulation...")
+        qsimcirq_state, qsimcirq_time = self.run_qsimcirq_simulation(qasm_file)
+        if qsimcirq_state is not None:
+            print(f"  ✓ QsimCirq simulation completed in {qsimcirq_time:.4f}s")
+            print(f"    Statevector shape: {qsimcirq_state.shape}")
+        else:
+            print("  ✗ QsimCirq simulation failed")
+        
+        # Step 6: Run TensorNetwork simulation
+        print("\nStep 6: Running TensorNetwork simulation...")
+        tensornetwork_state, tensornetwork_time = self.run_tensornetwork_simulation(qasm_file)
+        if tensornetwork_time is not None:
+            print(f"  ✓ TensorNetwork simulation completed in {tensornetwork_time:.4f}s")
+        else:
+            print("  ✗ TensorNetwork simulation failed")
+        
+        # Step 7: Get circuit information
+        print("\nStep 7: Extracting circuit information...")
         try:
             circuit = QuantumCircuit.from_qasm_file(qasm_file)
             num_qubits = circuit.num_qubits
             num_gates = circuit.size()
-        except:
+            print(f"  ✓ Circuit info: {num_qubits} qubits, {num_gates} gates")
+        except Exception as e:
+            print(f"  ✗ Failed to get circuit info: {e}")
             num_qubits = None
             num_gates = None
         
-        # Calculate fidelities (using Qiskit as reference)
+        # Step 8: Calculate fidelities
+        print("\nStep 8: Calculating fidelities between simulators...")
         fidelities = {}
         if qiskit_state is not None:
             if qiskit_mps_state is not None:
-                fidelities['qiskit_qiskit_mps'] = self.calculate_fidelity(qiskit_state, qiskit_mps_state)
+                fidelity = self.calculate_fidelity(qiskit_state, qiskit_mps_state)
+                fidelities['qiskit_qiskit_mps'] = fidelity
+                print(f"  ✓ Qiskit vs Qiskit MPS fidelity: {fidelity:.6f}" if fidelity else "  ✗ Fidelity calculation failed")
             if quimb_state is not None:
-                fidelities['qiskit_quimb'] = self.calculate_fidelity(qiskit_state, quimb_state)
+                fidelity = self.calculate_fidelity(qiskit_state, quimb_state)
+                fidelities['qiskit_quimb'] = fidelity
+                print(f"  ✓ Qiskit vs Quimb fidelity: {fidelity:.6f}" if fidelity else "  ✗ Fidelity calculation failed")
             if qsimcirq_state is not None:
-                fidelities['qiskit_qsimcirq'] = self.calculate_fidelity(qiskit_state, qsimcirq_state)
+                fidelity = self.calculate_fidelity(qiskit_state, qsimcirq_state)
+                fidelities['qiskit_qsimcirq'] = fidelity
+                print(f"  ✓ Qiskit vs QsimCirq fidelity: {fidelity:.6f}" if fidelity else "  ✗ Fidelity calculation failed")
             if tensornetwork_state is not None:
-                fidelities['qiskit_tensornetwork'] = self.calculate_fidelity(qiskit_state, tensornetwork_state)
+                fidelity = self.calculate_fidelity(qiskit_state, tensornetwork_state)
+                fidelities['qiskit_tensornetwork'] = fidelity
+                print(f"  ✓ Qiskit vs TensorNetwork fidelity: {fidelity:.6f}" if fidelity else "  ✗ Fidelity calculation failed")
+        else:
+            print("  ⚠ No Qiskit state available for fidelity calculations")
         
-        # Get statevector information
+        # Step 9: Get statevector information
+        print("\nStep 9: Extracting statevector information...")
         qiskit_info = self.get_statevector_info(qiskit_state)
+        if qiskit_info:
+            magnitude, phase, dominant_states = qiskit_info
+            print(f"  ✓ Statevector info extracted")
+            if dominant_states:
+                print(f"    Top state: {dominant_states[0][0]} (amplitude: {dominant_states[0][1]:.6f})")
+        else:
+            print("  ✗ Failed to extract statevector info")
         
-        # Calculate target accuracy
+        # Step 10: Calculate target accuracy
+        print("\nStep 10: Calculating target accuracy...")
         target_accuracies = {}
         if expected_data and expected_data.get('target_state'):
             target_state = expected_data['target_state']
+            print(f"  Target state: {target_state}")
+            
             if qiskit_state is not None:
-                target_accuracies['qiskit_target'] = self.calculate_target_accuracy(qiskit_state, target_state)
+                accuracy = self.calculate_target_accuracy(qiskit_state, target_state)
+                target_accuracies['qiskit_target'] = accuracy
+                print(f"  ✓ Qiskit target accuracy: {accuracy:.8f}" if accuracy else "  ✗ Target accuracy calculation failed")
             if qiskit_mps_state is not None:
-                target_accuracies['qiskit_mps_target'] = self.calculate_target_accuracy(qiskit_mps_state, target_state)
+                accuracy = self.calculate_target_accuracy(qiskit_mps_state, target_state)
+                target_accuracies['qiskit_mps_target'] = accuracy
+                print(f"  ✓ Qiskit MPS target accuracy: {accuracy:.8f}" if accuracy else "  ✗ Target accuracy calculation failed")
             if qsimcirq_state is not None:
-                target_accuracies['qsimcirq_target'] = self.calculate_target_accuracy(qsimcirq_state, target_state)
+                accuracy = self.calculate_target_accuracy(qsimcirq_state, target_state)
+                target_accuracies['qsimcirq_target'] = accuracy
+                print(f"  ✓ QsimCirq target accuracy: {accuracy:.8f}" if accuracy else "  ✗ Target accuracy calculation failed")
+        else:
+            print("  ⚠ No target state available for accuracy calculations")
         
-        # Store results
+        # Step 11: Store results
+        print("\nStep 11: Storing results...")
         result = {
             'file': qasm_file,
             'num_qubits': num_qubits,
@@ -506,6 +580,33 @@ class QuantumSimulatorComparison:
         }
         
         self.results.append(result)
+        print("  ✓ Results stored successfully")
+        
+        # Step 12: Summary
+        print("\n" + "=" * 60)
+        print("COMPARISON SUMMARY:")
+        print(f"  File: {os.path.basename(qasm_file)}")
+        print(f"  Qubits: {num_qubits}")
+        print(f"  Gates: {num_gates}")
+        print(f"  Qiskit time: {qiskit_time:.4f}s" if qiskit_time else "  Qiskit time: N/A")
+        print(f"  Qiskit MPS time: {qiskit_mps_time:.4f}s" if qiskit_mps_time else "  Qiskit MPS time: N/A")
+        print(f"  QsimCirq time: {qsimcirq_time:.4f}s" if qsimcirq_time else "  QsimCirq time: N/A")
+        
+        if expected_data:
+            print(f"  Target state: {expected_data.get('target_state')}")
+            print(f"  Expected peak prob: {expected_data.get('peak_prob'):.2e}")
+        
+        if target_accuracies:
+            for key, value in target_accuracies.items():
+                if value is not None:
+                    print(f"  {key}: {value:.8f}")
+        
+        if fidelities:
+            for key, value in fidelities.items():
+                if value is not None:
+                    print(f"  {key}: {value:.6f}")
+        
+        print("=" * 60)
         return result
     
     def run_all_comparisons(self):
