@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import warnings
+import json
 warnings.filterwarnings('ignore')
 
 # Import quantum libraries
@@ -74,13 +75,52 @@ class QuantumSimulatorComparison:
         self.enable_mps = enable_mps
         
     def find_qasm_files(self):
-        """Find all QASM files in the circuits directory"""
+        """Find all QASM files in the circuits directory, sorted by difficulty"""
         qasm_files = []
         for root, dirs, files in os.walk(self.circuits_dir):
             for file in files:
                 if file.endswith('.qasm'):
                     qasm_files.append(os.path.join(root, file))
+        
+        # Sort by difficulty level (extracted from filename)
+        def extract_difficulty(filepath):
+            filename = os.path.basename(filepath)
+            # Extract difficulty from filename like "peaked_circuit_diff=0.000_PUBLIC_..."
+            match = re.search(r'diff=([\d.]+)', filename)
+            if match:
+                return float(match.group(1))
+            return float('inf')  # Put files without difficulty at the end
+        
+        # Sort by difficulty (smaller first)
+        qasm_files.sort(key=extract_difficulty)
+        
         return qasm_files
+    
+    def get_expected_value(self, qasm_file):
+        """Extract expected value from corresponding meta.json file"""
+        try:
+            # Get the base name without extension
+            base_name = os.path.splitext(qasm_file)[0]
+            meta_file = f"{base_name}_meta.json"
+            
+            if os.path.exists(meta_file):
+                with open(meta_file, 'r') as f:
+                    meta_data = json.load(f)
+                
+                return {
+                    'target_state': meta_data.get('target_state'),
+                    'peak_prob': meta_data.get('peak_prob'),
+                    'difficulty_level': meta_data.get('difficulty_level'),
+                    'num_qubits': meta_data.get('num_qubits'),
+                    'rqc_depth': meta_data.get('rqc_depth'),
+                    'pqc_depth': meta_data.get('pqc_depth'),
+                    'est_num_shots': meta_data.get('est_num_shots')
+                }
+            else:
+                return None
+        except Exception as e:
+            print(f"Error reading meta file for {qasm_file}: {e}")
+            return None
     
     def run_qiskit_simulation(self, qasm_file):
         """Run simulation using Qiskit Aer statevector simulator"""
@@ -293,9 +333,33 @@ class QuantumSimulatorComparison:
             print(f"Statevector info extraction failed: {e}")
             return None, None, None
     
+    def calculate_target_accuracy(self, statevector, target_state):
+        """Calculate accuracy against target state"""
+        if statevector is None or target_state is None:
+            return None
+            
+        try:
+            # Get the probability of the target state
+            num_qubits = int(np.log2(len(statevector)))
+            target_idx = int(target_state, 2)
+            
+            if target_idx >= len(statevector):
+                return None
+                
+            target_prob = np.abs(statevector[target_idx]) ** 2
+            
+            return target_prob
+            
+        except Exception as e:
+            print(f"Error calculating target accuracy: {e}")
+            return None
+    
     def run_comparison(self, qasm_file):
         """Run comparison for a single QASM file"""
         print(f"Processing: {qasm_file}")
+        
+        # Get expected values from meta.json
+        expected_data = self.get_expected_value(qasm_file)
         
         # Run simulations
         qiskit_state, qiskit_time = self.run_qiskit_simulation(qasm_file)
@@ -334,6 +398,17 @@ class QuantumSimulatorComparison:
         # Get statevector information
         qiskit_info = self.get_statevector_info(qiskit_state)
         
+        # Calculate target accuracy
+        target_accuracies = {}
+        if expected_data and expected_data.get('target_state'):
+            target_state = expected_data['target_state']
+            if qiskit_state is not None:
+                target_accuracies['qiskit_target'] = self.calculate_target_accuracy(qiskit_state, target_state)
+            if qiskit_mps_state is not None:
+                target_accuracies['qiskit_mps_target'] = self.calculate_target_accuracy(qiskit_mps_state, target_state)
+            if qsimcirq_state is not None:
+                target_accuracies['qsimcirq_target'] = self.calculate_target_accuracy(qsimcirq_state, target_state)
+        
         # Store results
         result = {
             'file': qasm_file,
@@ -345,7 +420,9 @@ class QuantumSimulatorComparison:
             'qsimcirq_time': qsimcirq_time,
             'tensornetwork_time': tensornetwork_time,
             'fidelities': fidelities,
-            'qiskit_statevector_info': qiskit_info
+            'qiskit_statevector_info': qiskit_info,
+            'expected_data': expected_data,
+            'target_accuracies': target_accuracies
         }
         
         self.results.append(result)
@@ -354,10 +431,21 @@ class QuantumSimulatorComparison:
     def run_all_comparisons(self):
         """Run comparisons for all QASM files"""
         qasm_files = self.find_qasm_files()
+        
+        if not qasm_files:
+            print("No QASM files found")
+            return
+        
         print(f"Found {len(qasm_files)} QASM files")
+        print("Files will be processed in order of increasing difficulty")
         
         for i, qasm_file in enumerate(qasm_files):
-            print(f"\n[{i+1}/{len(qasm_files)}] Processing: {os.path.basename(qasm_file)}")
+            # Extract difficulty for display
+            filename = os.path.basename(qasm_file)
+            difficulty_match = re.search(r'diff=([\d.]+)', filename)
+            difficulty = difficulty_match.group(1) if difficulty_match else "unknown"
+            
+            print(f"\n[{i+1}/{len(qasm_files)}] Processing: {os.path.basename(qasm_file)} (difficulty: {difficulty})")
             self.run_comparison(qasm_file)
     
     def generate_report(self):
@@ -413,6 +501,40 @@ class QuantumSimulatorComparison:
                     print(f"  Max fidelity:  {subset['fidelity'].max():.6f}")
                     print(f"  Count: {len(subset)}")
         
+        # Target accuracy analysis
+        print("\nTARGET ACCURACY ANALYSIS:")
+        print("-" * 40)
+        target_accuracy_data = []
+        for result in self.results:
+            if result.get('target_accuracies'):
+                for key, value in result['target_accuracies'].items():
+                    if value is not None:
+                        target_accuracy_data.append({
+                            'simulator': key,
+                            'accuracy': value,
+                            'file': result['file'],
+                            'target_state': result.get('expected_data', {}).get('target_state'),
+                            'peak_prob': result.get('expected_data', {}).get('peak_prob')
+                        })
+        
+        if target_accuracy_data:
+            target_df = pd.DataFrame(target_accuracy_data)
+            for simulator in target_df['simulator'].unique():
+                subset = target_df[target_df['simulator'] == simulator]
+                print(f"{simulator.replace('_', ' ').title()}:")
+                print(f"  Mean accuracy: {subset['accuracy'].mean():.8f}")
+                print(f"  Min accuracy:  {subset['accuracy'].min():.8f}")
+                print(f"  Max accuracy:  {subset['accuracy'].max():.8f}")
+                print(f"  Count: {len(subset)}")
+                
+                # Compare with expected peak probability
+                if 'peak_prob' in subset.columns:
+                    peak_probs = subset['peak_prob'].dropna()
+                    if len(peak_probs) > 0:
+                        print(f"  Expected peak prob: {peak_probs.mean():.8f}")
+                        accuracy_vs_expected = subset['accuracy'].mean() / peak_probs.mean() if peak_probs.mean() > 0 else 0
+                        print(f"  Accuracy vs Expected: {accuracy_vs_expected:.2f}x")
+        
         # Circuit statistics
         print("\nCIRCUIT STATISTICS:")
         print("-" * 40)
@@ -463,6 +585,22 @@ class QuantumSimulatorComparison:
             if result['fidelities']:
                 for key, value in result['fidelities'].items():
                     flat_result[f'fidelity_{key}'] = value
+            
+            # Add expected data
+            if result.get('expected_data'):
+                expected = result['expected_data']
+                flat_result['target_state'] = expected.get('target_state')
+                flat_result['peak_prob'] = expected.get('peak_prob')
+                flat_result['difficulty_level'] = expected.get('difficulty_level')
+                flat_result['expected_num_qubits'] = expected.get('num_qubits')
+                flat_result['rqc_depth'] = expected.get('rqc_depth')
+                flat_result['pqc_depth'] = expected.get('pqc_depth')
+                flat_result['est_num_shots'] = expected.get('est_num_shots')
+            
+            # Add target accuracies
+            if result.get('target_accuracies'):
+                for key, value in result['target_accuracies'].items():
+                    flat_result[f'target_accuracy_{key}'] = value
             
             flat_results.append(flat_result)
         
