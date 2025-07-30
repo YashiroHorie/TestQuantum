@@ -84,7 +84,7 @@ class WorkingSimulatorTest:
             mps_backend = AerSimulator(method='matrix_product_state')
             mps_backend.set_options(max_parallel_threads=4)
             transpiled_circuit = transpile(circuit, mps_backend)
-            job = mps_backend.run(transpiled_circuit, shots=1000)
+            job = mps_backend.run(transpiled_circuit, shots=10000)
             print("Successfully ran the job")
             result = job.result(timeout=100)
             print("Successfully got the result {result}")
