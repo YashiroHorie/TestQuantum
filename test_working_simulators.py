@@ -78,13 +78,12 @@ class WorkingSimulatorTest:
             
             # Load QASM circuit
             circuit = QuantumCircuit.from_qasm_file(qasm_file)
-            circuit_no_meas = circuit.remove_final_measurements(inplace=False)
-            num_qubits = circuit_no_meas.num_qubits
+            num_qubits = circuit.num_qubits
             
             # Use MPS simulator with explicit shots
             mps_backend = AerSimulator(method='matrix_product_state')
             mps_backend.set_options(max_parallel_threads=4)
-            transpiled_circuit = transpile(circuit_no_meas, mps_backend)
+            transpiled_circuit = transpile(circuit, mps_backend)
             job = mps_backend.run(transpiled_circuit, shots=1000)
             print("Successfully ran the job")
             result = job.result()
@@ -135,7 +134,7 @@ class WorkingSimulatorTest:
             
             # Use Qsim simulator
             simulator = qsimcirq.QSimSimulator()
-            result = simulator.simulate(circuit)
+            result = simulator.run(circuit, repetitions=1000)
             statevector = result.final_state_vector
             
             execution_time = time.time() - start_time
