@@ -279,6 +279,7 @@ class WorkingSimulatorTest:
             if error:
                 return None, f"Job failed: {error}"
             
+            print(f"Result: {result}")
             # Get counts and reconstruct state vector
             counts = result.get_counts()
             statevector = np.zeros(2**num_qubits, dtype=complex)
