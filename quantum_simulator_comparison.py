@@ -187,13 +187,13 @@ class QuantumSimulatorComparison:
         
         # Load QASM file
         circuit = QuantumCircuit.from_qasm_file(qasm_file)
-        
+        circuit_no_meas = circuit.remove_final_measurements(inplace=False)
         # Get number of qubits
         num_qubits = circuit.num_qubits
         
         # Execute on statevector simulator using new API
         backend = Aer.get_backend('statevector_simulator')
-        transpiled_circuit = transpile(circuit, backend)
+        transpiled_circuit = transpile(circuit_no_meas, backend)
         job = backend.run(transpiled_circuit)
         result = job.result()
         statevector = result.get_statevector()
