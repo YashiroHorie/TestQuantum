@@ -86,7 +86,7 @@ class WorkingSimulatorTest:
             transpiled_circuit = transpile(circuit, mps_backend)
             job = mps_backend.run(transpiled_circuit, shots=1000)
             print("Successfully ran the job")
-            result = job.result()
+            result = job.result(timeout=100)
             print("Successfully got the result {result}")
             # Get counts and reconstruct state vector
             counts = result.get_counts()
