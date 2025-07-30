@@ -14,6 +14,12 @@ qsimcirq>=0.13.0
 cirq>=1.0.0
 tensornetwork>=0.4.0
 
+# Tensor network optimization
+cotengra>=0.3.0
+
+# Exascale tensor networks (optional - may require special installation)
+# exatn>=0.1.0
+
 # Additional utilities
 scipy>=1.7.0
 tqdm>=4.62.0 
