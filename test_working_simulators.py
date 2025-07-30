@@ -87,7 +87,7 @@ class WorkingSimulatorTest:
             job = mps_backend.run(transpiled_circuit, shots=1000)
             print("Successfully ran the job")
             result = job.result()
-            
+            print("Successfully got the result {result}")
             # Get counts and reconstruct state vector
             counts = result.get_counts()
             statevector = np.zeros(2**num_qubits, dtype=complex)
