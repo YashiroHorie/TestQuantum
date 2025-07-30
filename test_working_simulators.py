@@ -134,7 +134,7 @@ class WorkingSimulatorTest:
             
             # Use Qsim simulator
             simulator = qsimcirq.QSimSimulator()
-            result = simulator.run(circuit)
+            result = simulator.simulate(circuit)
             statevector = result.final_state_vector
             
             execution_time = time.time() - start_time
