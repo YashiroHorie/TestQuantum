@@ -246,7 +246,7 @@ class WorkingSimulatorTest:
             
             # Use MPS simulator with explicit shots
             mps_backend = AerSimulator(method='matrix_product_state')
-            mps_backend.set_options(max_parallel_threads=4)
+            mps_backend.set_options(max_parallel_shots=16, max_parallel_threads=16, max_parallel_experiments=16)
             transpiled_circuit = transpile(circuit, mps_backend)
             job = mps_backend.run(transpiled_circuit, shots=10000)
             print("Successfully ran the job")
