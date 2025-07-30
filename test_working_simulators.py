@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-Multi-Simulator Quantum Circuit Test
+Working Simulators Test
 
-This script tests QASM files using multiple quantum simulators:
-- ExaTN (Exascale Tensor Networks)
+This script tests QASM files using the working simulators:
 - Qiskit MPS (Matrix Product State)
-- Quimb + Cotengra (Tensor Network Optimization)
 - Qsim (Google's Quantum Simulator)
 
-It compares results across simulators and provides detailed analysis.
+It provides detailed analysis and comparison of results.
 """
 
 import os
@@ -25,27 +23,11 @@ try:
     from qiskit import QuantumCircuit
     from qiskit.compiler import transpile
     from qiskit.quantum_info import Statevector, state_fidelity
-    from qiskit_aer import Aer
     from qiskit_aer import AerSimulator
     QISKIT_AVAILABLE = True
 except ImportError:
     QISKIT_AVAILABLE = False
     print("Warning: Qiskit not available")
-
-try:
-    import quimb.tensor as qtn
-    import quimb.gen as qugen
-    QUIMB_AVAILABLE = True
-except ImportError:
-    QUIMB_AVAILABLE = False
-    print("Warning: Quimb not available")
-
-try:
-    import cotengra
-    COTENGRA_AVAILABLE = True
-except ImportError:
-    COTENGRA_AVAILABLE = False
-    print("Warning: Cotengra not available")
 
 try:
     import qsimcirq
@@ -55,15 +37,8 @@ except ImportError:
     QSIMCIRQ_AVAILABLE = False
     print("Warning: QsimCirq not available")
 
-try:
-    import exatn
-    EXATN_AVAILABLE = True
-except ImportError:
-    EXATN_AVAILABLE = False
-    print("Warning: ExaTN not available")
-
-class MultiSimulatorTest:
-    """Test quantum circuits using multiple simulators"""
+class WorkingSimulatorTest:
+    """Test quantum circuits using working simulators"""
     
     def __init__(self, sample_dir="sample_circuits"):
         self.sample_dir = sample_dir
@@ -96,7 +71,7 @@ class MultiSimulatorTest:
     def test_qiskit_mps(self, qasm_file):
         """Test using Qiskit MPS simulator"""
         if not QISKIT_AVAILABLE:
-            return None, None, "Qiskit not available"
+            return None, "Qiskit not available"
         
         try:
             start_time = time.time()
@@ -105,30 +80,22 @@ class MultiSimulatorTest:
             circuit = QuantumCircuit.from_qasm_file(qasm_file)
             num_qubits = circuit.num_qubits
             
-            # Use MPS simulator
+            # Use MPS simulator with explicit shots
             mps_backend = AerSimulator(method='matrix_product_state')
             transpiled_circuit = transpile(circuit, mps_backend)
-            job = mps_backend.run(transpiled_circuit, shots=1)
+            job = mps_backend.run(transpiled_circuit, shots=1000)
             result = job.result()
             
-            # Get statevector - handle different result formats
-            try:
-                statevector = result.get_statevector()
-            except:
-                # Try alternative method for MPS
-                try:
-                    statevector = result.get_statevector(0)
-                except:
-                    # Fallback to counts and reconstruct
-                    counts = result.get_counts()
-                    statevector = np.zeros(2**num_qubits, dtype=complex)
-                    for bitstring, count in counts.items():
-                        index = int(bitstring, 2)
-                        statevector[index] = np.sqrt(count)
+            # Get counts and reconstruct state vector
+            counts = result.get_counts()
+            statevector = np.zeros(2**num_qubits, dtype=complex)
+            total_shots = sum(counts.values())
             
-            # Convert to numpy array
-            if hasattr(statevector, 'data'):
-                statevector = statevector.data
+            for bitstring, count in counts.items():
+                index = int(bitstring, 2)
+                # Estimate amplitude from counts
+                amplitude = np.sqrt(count / total_shots)
+                statevector[index] = amplitude
             
             execution_time = time.time() - start_time
             
@@ -142,136 +109,18 @@ class MultiSimulatorTest:
                 'peak_bitstring': peak_bitstring,
                 'peak_probability': peak_probability,
                 'statevector': statevector,
-                'execution_time': execution_time
-            }, None, None
-            
-        except Exception as e:
-            return None, None, str(e)
-    
-    def test_quimb_cotengra(self, qasm_file):
-        """Test using Quimb with Cotengra optimization"""
-        if not QUIMB_AVAILABLE or not COTENGRA_AVAILABLE:
-            return None, None, "Quimb or Cotengra not available"
-        
-        try:
-            start_time = time.time()
-            
-            # Read and parse QASM file
-            with open(qasm_file, 'r') as f:
-                qasm_content = f.read()
-            
-            # Parse QASM to get circuit information
-            num_qubits = 0
-            instructions = []
-            
-            for line in qasm_content.split('\n'):
-                line = line.strip()
-                if line.startswith('qreg q['):
-                    num_qubits = int(line.split('[')[1].split(']')[0])
-                elif line.startswith('h q['):
-                    qubit = int(line.split('[')[1].split(']')[0])
-                    instructions.append(('h', qubit))
-                elif line.startswith('cx q['):
-                    parts = line.split('q[')
-                    control = int(parts[1].split(']')[0])
-                    target = int(parts[2].split(']')[0])
-                    instructions.append(('cx', control, target))
-                elif line.startswith('x q['):
-                    qubit = int(line.split('[')[1].split(']')[0])
-                    instructions.append(('x', qubit))
-                elif line.startswith('rz('):
-                    qubit = int(line.split('q[')[1].split(']')[0])
-                    angle = float(line.split('(')[1].split(')')[0])
-                    instructions.append(('rz', qubit, angle))
-            
-            # For now, use a simplified approach that works
-            # Create a simple tensor network representation
-            tensors = []
-            
-            # Initialize qubits as simple tensors
-            for i in range(num_qubits):
-                # Create qubit tensor in |0⟩ state
-                qubit_tensor = qtn.Tensor([1.0, 0.0], inds=[f'q{i}'])
-                tensors.append(qubit_tensor)
-            
-            # Apply gates (simplified approach)
-            for instruction in instructions:
-                if instruction[0] == 'h':
-                    qubit_idx = instruction[1]
-                    H = np.array([[1, 1], [1, -1]]) / np.sqrt(2)
-                    H_tensor = qtn.Tensor(H, inds=[f'q{qubit_idx}', f'q{qubit_idx}_out'])
-                    tensors.append(H_tensor)
-                elif instruction[0] == 'x':
-                    qubit_idx = instruction[1]
-                    X = np.array([[0, 1], [1, 0]])
-                    X_tensor = qtn.Tensor(X, inds=[f'q{qubit_idx}', f'q{qubit_idx}_out'])
-                    tensors.append(X_tensor)
-                elif instruction[0] == 'rz':
-                    qubit_idx = instruction[1]
-                    angle = instruction[2]
-                    RZ = np.array([[np.exp(-1j * angle / 2), 0], [0, np.exp(1j * angle / 2)]])
-                    RZ_tensor = qtn.Tensor(RZ, inds=[f'q{qubit_idx}', f'q{qubit_idx}_out'])
-                    tensors.append(RZ_tensor)
-                elif instruction[0] == 'cx':
-                    # Skip CNOT for now to avoid tensor index issues
-                    # This is a limitation of the simplified approach
-                    pass
-            
-            # Use Cotengra to optimize contraction (if we have enough tensors)
-            if len(tensors) > 1:
-                try:
-                    optimizer = cotengra.HyperOptimizer(
-                        methods=['greedy'],
-                        max_repeats=5,
-                        max_time=10
-                    )
-                    
-                    # Create tensor network
-                    tn = qtn.TensorNetwork(tensors)
-                    
-                    # Optimize contraction path
-                    path = optimizer.optimize(tn)
-                    
-                    # Execute contraction
-                    result_tensor = tn.contract(path)
-                    
-                    execution_time = time.time() - start_time
-                    
-                    # For now, return a simplified result
-                    statevector = np.zeros(2**num_qubits, dtype=complex)
-                    statevector[0] = 1.0  # Simplified - would need actual contraction result
-                    
-                except Exception as e:
-                    # Fallback if optimization fails
-                    execution_time = time.time() - start_time
-                    statevector = np.zeros(2**num_qubits, dtype=complex)
-                    statevector[0] = 1.0
-            else:
-                execution_time = time.time() - start_time
-                statevector = np.zeros(2**num_qubits, dtype=complex)
-                statevector[0] = 1.0
-            
-            # Find peak probability
-            probabilities = np.abs(statevector) ** 2
-            peak_index = np.argmax(probabilities)
-            peak_probability = probabilities[peak_index]
-            peak_bitstring = format(peak_index, f'0{num_qubits}b')
-            
-            return {
-                'peak_bitstring': peak_bitstring,
-                'peak_probability': peak_probability,
-                'statevector': statevector,
                 'execution_time': execution_time,
-                'note': 'Simplified tensor network approach'
-            }, None, None
+                'counts': counts,
+                'total_shots': total_shots
+            }, None
             
         except Exception as e:
-            return None, None, str(e)
+            return None, str(e)
     
     def test_qsim(self, qasm_file):
         """Test using Qsim simulator"""
         if not QSIMCIRQ_AVAILABLE:
-            return None, None, "QsimCirq not available"
+            return None, "QsimCirq not available"
         
         try:
             start_time = time.time()
@@ -279,7 +128,7 @@ class MultiSimulatorTest:
             # Convert QASM to Cirq circuit
             circuit = self.qasm_to_cirq(qasm_file)
             if circuit is None:
-                return None, None, "Failed to convert QASM to Cirq"
+                return None, "Failed to convert QASM to Cirq"
             
             # Use Qsim simulator
             simulator = qsimcirq.QSimSimulator()
@@ -299,32 +148,10 @@ class MultiSimulatorTest:
                 'peak_probability': peak_probability,
                 'statevector': statevector,
                 'execution_time': execution_time
-            }, None, None
+            }, None
             
         except Exception as e:
-            return None, None, str(e)
-    
-    def test_exatn(self, qasm_file):
-        """Test using ExaTN simulator"""
-        if not EXATN_AVAILABLE:
-            return None, None, "ExaTN not available"
-        
-        try:
-            start_time = time.time()
-            
-            # ExaTN implementation would go here
-            # For now, return a placeholder since ExaTN API may vary
-            execution_time = time.time() - start_time
-            
-            return {
-                'peak_bitstring': '0000',  # Placeholder
-                'peak_probability': 1.0,   # Placeholder
-                'statevector': np.array([1.0] + [0.0] * 15),  # Placeholder
-                'execution_time': execution_time
-            }, None, "ExaTN implementation placeholder"
-            
-        except Exception as e:
-            return None, None, str(e)
+            return None, str(e)
     
     def qasm_to_cirq(self, qasm_file):
         """Convert QASM file to Cirq circuit"""
@@ -385,7 +212,7 @@ class MultiSimulatorTest:
             return None
     
     def run_single_test(self, qasm_file):
-        """Run all simulators on a single QASM file"""
+        """Run both simulators on a single QASM file"""
         print(f"\n{'='*80}")
         print(f"Testing: {os.path.basename(qasm_file)}")
         print(f"{'='*80}")
@@ -394,7 +221,7 @@ class MultiSimulatorTest:
         
         # Test Qiskit MPS
         print("\n1. Testing Qiskit MPS...")
-        result, _, error = self.test_qiskit_mps(qasm_file)
+        result, error = self.test_qiskit_mps(qasm_file)
         if result:
             print(f"   ✓ Qiskit MPS: Peak={result['peak_bitstring']}, "
                   f"Prob={result['peak_probability']:.6f}, "
@@ -403,20 +230,9 @@ class MultiSimulatorTest:
         else:
             print(f"   ✗ Qiskit MPS failed: {error}")
         
-        # Test Quimb + Cotengra
-        print("\n2. Testing Quimb + Cotengra...")
-        result, _, error = self.test_quimb_cotengra(qasm_file)
-        if result:
-            print(f"   ✓ Quimb+Cotengra: Peak={result['peak_bitstring']}, "
-                  f"Prob={result['peak_probability']:.6f}, "
-                  f"Time={result['execution_time']:.3f}s")
-            results['quimb_cotengra'] = result
-        else:
-            print(f"   ✗ Quimb+Cotengra failed: {error}")
-        
         # Test Qsim
-        print("\n3. Testing Qsim...")
-        result, _, error = self.test_qsim(qasm_file)
+        print("\n2. Testing Qsim...")
+        result, error = self.test_qsim(qasm_file)
         if result:
             print(f"   ✓ Qsim: Peak={result['peak_bitstring']}, "
                   f"Prob={result['peak_probability']:.6f}, "
@@ -424,17 +240,6 @@ class MultiSimulatorTest:
             results['qsim'] = result
         else:
             print(f"   ✗ Qsim failed: {error}")
-        
-        # Test ExaTN
-        print("\n4. Testing ExaTN...")
-        result, _, error = self.test_exatn(qasm_file)
-        if result:
-            print(f"   ✓ ExaTN: Peak={result['peak_bitstring']}, "
-                  f"Prob={result['peak_probability']:.6f}, "
-                  f"Time={result['execution_time']:.3f}s")
-            results['exatn'] = result
-        else:
-            print(f"   ✗ ExaTN failed: {error}")
         
         # Compare results
         if len(results) >= 2:
@@ -454,22 +259,25 @@ class MultiSimulatorTest:
             exec_times = {name: result['execution_time'] for name, result in results.items()}
             print(f"Execution times: {exec_times}")
             
-            # Calculate fidelity between simulators (if statevectors available)
+            # Calculate fidelity between simulators
             if 'qiskit_mps' in results and 'qsim' in results:
                 try:
                     sv1 = results['qiskit_mps']['statevector']
                     sv2 = results['qsim']['statevector']
                     if len(sv1) == len(sv2):
-                        fidelity = state_fidelity(sv1, sv2)
+                        # Normalize state vectors
+                        sv1_norm = sv1 / np.linalg.norm(sv1)
+                        sv2_norm = sv2 / np.linalg.norm(sv2)
+                        fidelity = np.abs(np.vdot(sv1_norm, sv2_norm)) ** 2
                         print(f"Fidelity (Qiskit MPS vs Qsim): {fidelity:.6f}")
-                except:
-                    pass
+                except Exception as e:
+                    print(f"Could not calculate fidelity: {e}")
         
         return results
     
     def run_all_tests(self, max_files=None):
         """Run tests on all QASM files"""
-        print("Multi-Simulator Quantum Circuit Test")
+        print("Working Simulators Quantum Circuit Test")
         print("=" * 60)
         
         # Find QASM files
@@ -524,7 +332,7 @@ class MultiSimulatorTest:
             print(df.to_string(index=False))
             
             # Save to CSV
-            output_file = "multi_simulator_results.csv"
+            output_file = "working_simulator_results.csv"
             df.to_csv(output_file, index=False)
             print(f"\nResults saved to: {output_file}")
             
@@ -542,33 +350,27 @@ class MultiSimulatorTest:
 
 def main():
     """Main function"""
-    print("Multi-Simulator Quantum Circuit Test")
+    print("Working Simulators Test")
     print("=" * 60)
     
     # Create test object
-    test = MultiSimulatorTest()
+    test = WorkingSimulatorTest()
     
-    # First, test setup
-    print("Testing simulator availability...")
+    # Check available simulators
     available_simulators = []
-    
     if QISKIT_AVAILABLE:
         available_simulators.append("Qiskit MPS")
-    if QUIMB_AVAILABLE and COTENGRA_AVAILABLE:
-        available_simulators.append("Quimb+Cotengra")
     if QSIMCIRQ_AVAILABLE:
         available_simulators.append("Qsim")
-    if EXATN_AVAILABLE:
-        available_simulators.append("ExaTN")
     
     print(f"Available simulators: {', '.join(available_simulators)}")
     
     if len(available_simulators) < 2:
-        print("Warning: Need at least 2 simulators for meaningful comparison")
+        print("Warning: Need at least 2 simulators for comparison")
         print("Continuing with available simulators...")
     
-    # Run tests on first 2 files (to avoid long execution)
-    test.run_all_tests(max_files=2)
+    # Run tests on first 3 files
+    test.run_all_tests(max_files=3)
 
 if __name__ == "__main__":
     main() 
