@@ -307,7 +307,7 @@ class MultiSimulatorTest:
     def test_exatn(self, qasm_file):
         """Test using ExaTN simulator"""
         if not EXATN_AVAILABLE:
-            return None, None, "ExaTN not available"
+            return None, None, "ExaTN not available - requires special installation"
         
         try:
             start_time = time.time()
@@ -563,8 +563,14 @@ def main():
     
     print(f"Available simulators: {', '.join(available_simulators)}")
     
+    # Provide information about ExaTN
+    if not EXATN_AVAILABLE:
+        print("\nNote: ExaTN is not available - this is expected.")
+        print("ExaTN requires special installation (C++ compiler, MPI, etc.)")
+        print("For more information, run: python test_simulator_info.py")
+    
     if len(available_simulators) < 2:
-        print("Warning: Need at least 2 simulators for meaningful comparison")
+        print("\nWarning: Need at least 2 simulators for meaningful comparison")
         print("Continuing with available simulators...")
     
     # Run tests on first 2 files (to avoid long execution)
