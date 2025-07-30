@@ -248,37 +248,11 @@ class WorkingSimulatorTest:
             mps_backend = AerSimulator(method='matrix_product_state')
             mps_backend.set_options(max_parallel_shots=16, max_parallel_threads=16, max_parallel_experiments=16)
             transpiled_circuit = transpile(circuit, mps_backend)
-            job = mps_backend.run(transpiled_circuit, shots=10000)
+            job = mps_backend.run(transpiled_circuit, shots=100000)
             print("Successfully ran the job")
             
             # Simple timeout approach
-            import threading
-            
-            result = None
-            error = None
-            completed = threading.Event()
-            
-            def get_result():
-                nonlocal result, error
-                try:
-                    result = job.result(timeout=timeout_seconds)
-                    completed.set()
-                except Exception as e:
-                    error = str(e)
-                    completed.set()
-            
-            # Start result retrieval in a separate thread
-            result_thread = threading.Thread(target=get_result)
-            result_thread.daemon = True
-            result_thread.start()
-            
-            # Wait for completion or timeout
-            if not completed.wait(timeout=timeout_seconds + 10):
-                return None, f"Job timed out after {timeout_seconds} seconds"
-            
-            if error:
-                return None, f"Job failed: {error}"
-            
+            result = job.result(timeout=timeout_seconds)
             print(f"Result: {result}")
             # Get counts and reconstruct state vector
             counts = result.get_counts()
