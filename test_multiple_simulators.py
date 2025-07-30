@@ -281,10 +281,39 @@ class MultiSimulatorTest:
             if circuit is None:
                 return None, None, "Failed to convert QASM to Cirq"
             
-            # Use Qsim simulator
+            # Use Qsim simulator with state vector simulation
             simulator = qsimcirq.QSimSimulator()
-            result = simulator.simulate(circuit)
-            statevector = result.final_state_vector
+            
+            try:
+                # Method 1: Try simulate for state vector
+                result = simulator.simulate(circuit)
+                statevector = result.final_state_vector
+            except Exception as sim_error:
+                # Method 2: If simulate fails, try run with measurements
+                try:
+                    # Add measurements to all qubits if none exist
+                    if not any(op.gate == cirq.ops.MeasurementGate for op in circuit.all_operations()):
+                        qubits = list(circuit.all_qubits())
+                        circuit_with_measurements = circuit + cirq.Circuit(cirq.measure(qubits))
+                    else:
+                        circuit_with_measurements = circuit
+                    
+                    # Run with repetitions
+                    result = simulator.run(circuit_with_measurements, repetitions=1000)
+                    counts = result.histogram(key='result')
+                    
+                    # Reconstruct state vector from counts
+                    num_qubits = len(list(circuit.all_qubits()))
+                    statevector = np.zeros(2**num_qubits, dtype=complex)
+                    total_shots = sum(counts.values())
+                    
+                    for bitstring, count in counts.items():
+                        index = int(bitstring, 2)
+                        amplitude = np.sqrt(count / total_shots)
+                        statevector[index] = amplitude
+                        
+                except Exception as run_error:
+                    return None, None, f"Both simulate and run failed: {sim_error}, {run_error}"
             
             execution_time = time.time() - start_time
             
