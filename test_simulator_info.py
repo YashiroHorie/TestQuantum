@@ -92,6 +92,31 @@ def print_installation_guide():
     print("   - May need to build from source")
     print("   - Check: https://github.com/ORNL-QCI/exatn")
     print("   - Alternative: Use other tensor network libraries")
+    
+    print("\n   HPC Environment Installation:")
+    print("   - Often pre-installed on HPC clusters")
+    print("   - Check with system administrators")
+    print("   - May be available via module system:")
+    print("     module load exatn")
+    print("   - Common locations: /usr/local/exatn, /opt/exatn")
+    
+    print("\n   Building from Source:")
+    print("   - Clone: git clone https://github.com/ORNL-QCI/exatn.git")
+    print("   - Dependencies: C++17, MPI, BLAS, LAPACK")
+    print("   - Build: mkdir build && cd build")
+    print("   - Configure: cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/install")
+    print("   - Install: make && make install")
+    
+    print("\n   Python Bindings:")
+    print("   - May require separate Python package installation")
+    print("   - Check: pip install exatn-python (if available)")
+    print("   - Alternative: Use C++ API directly")
+    
+    print("\n   Alternative Tensor Network Libraries:")
+    print("   - Quimb: pip install quimb")
+    print("   - TensorNetwork: pip install tensornetwork")
+    print("   - ITensor: https://itensor.org/")
+    print("   - These provide similar functionality with easier installation")
 
 def print_working_combinations():
     """Print working simulator combinations"""
