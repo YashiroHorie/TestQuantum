@@ -171,32 +171,113 @@ class WorkingSimulatorTest:
             job = mps_backend.run(transpiled_circuit, shots=10000)
             print("Successfully ran the job")
             
-            # Use multiprocessing for reliable timeout
-            import multiprocessing
+            # Use threading for reliable timeout
+            import threading
             import queue
             
-            def run_job_with_timeout():
+            result_queue = queue.Queue()
+            error_queue = queue.Queue()
+            
+            def get_result():
                 try:
                     result = job.result(timeout=timeout_seconds)
-                    return ('success', result)
+                    result_queue.put(('success', result))
                 except Exception as e:
-                    return ('error', str(e))
+                    error_queue.put(('error', str(e)))
             
-            # Run in separate process with timeout
-            with multiprocessing.Pool(1) as pool:
+            # Start result retrieval in a separate thread
+            result_thread = threading.Thread(target=get_result)
+            result_thread.daemon = True
+            result_thread.start()
+            
+            # Wait for result with timeout
+            try:
+                status, result_data = result_queue.get(timeout=timeout_seconds + 10)
+                if status == 'error':
+                    return None, f"Job failed: {result_data}"
+                result = result_data
+            except queue.Empty:
+                # Timeout occurred
+                print(f"Job timed out after {timeout_seconds} seconds")
+                return None, f"Job timed out after {timeout_seconds} seconds"
+            
+            # Get counts and reconstruct state vector
+            counts = result.get_counts()
+            statevector = np.zeros(2**num_qubits, dtype=complex)
+            total_shots = sum(counts.values())
+            
+            for bitstring, count in counts.items():
+                index = int(bitstring, 2)
+                # Estimate amplitude from counts
+                amplitude = np.sqrt(count / total_shots)
+                statevector[index] = amplitude
+            
+            execution_time = time.time() - start_time
+            
+            # Find peak probability
+            probabilities = np.abs(statevector) ** 2
+            peak_index = np.argmax(probabilities)
+            peak_probability = probabilities[peak_index]
+            peak_bitstring = format(peak_index, f'0{num_qubits}b')
+            
+            return {
+                'peak_bitstring': peak_bitstring,
+                'peak_probability': peak_probability,
+                'statevector': statevector,
+                'execution_time': execution_time,
+                'counts': counts,
+                'total_shots': total_shots
+            }, None
+            
+        except Exception as e:
+            return None, str(e)
+    
+    def test_qiskit_mps_simple(self, qasm_file, timeout_seconds=60):
+        """Test using Qiskit MPS simulator with simple timeout"""
+        if not QISKIT_AVAILABLE:
+            return None, "Qiskit not available"
+        
+        try:
+            start_time = time.time()
+            
+            # Load QASM circuit
+            circuit = QuantumCircuit.from_qasm_file(qasm_file)
+            num_qubits = circuit.num_qubits
+            
+            # Use MPS simulator with explicit shots
+            mps_backend = AerSimulator(method='matrix_product_state')
+            mps_backend.set_options(max_parallel_threads=4)
+            transpiled_circuit = transpile(circuit, mps_backend)
+            job = mps_backend.run(transpiled_circuit, shots=10000)
+            print("Successfully ran the job")
+            
+            # Simple timeout approach
+            import threading
+            
+            result = None
+            error = None
+            completed = threading.Event()
+            
+            def get_result():
+                nonlocal result, error
                 try:
-                    result_tuple = pool.apply_async(run_job_with_timeout).get(timeout=timeout_seconds + 10)
-                    status, result_data = result_tuple
-                    
-                    if status == 'error':
-                        return None, f"Job failed: {result_data}"
-                    
-                    result = result_data
-                    
-                except multiprocessing.TimeoutError:
-                    return None, f"Job timed out after {timeout_seconds} seconds"
+                    result = job.result(timeout=timeout_seconds)
+                    completed.set()
                 except Exception as e:
-                    return None, f"Process error: {e}"
+                    error = str(e)
+                    completed.set()
+            
+            # Start result retrieval in a separate thread
+            result_thread = threading.Thread(target=get_result)
+            result_thread.daemon = True
+            result_thread.start()
+            
+            # Wait for completion or timeout
+            if not completed.wait(timeout=timeout_seconds + 10):
+                return None, f"Job timed out after {timeout_seconds} seconds"
+            
+            if error:
+                return None, f"Job failed: {error}"
             
             # Get counts and reconstruct state vector
             counts = result.get_counts()
@@ -333,7 +414,7 @@ class WorkingSimulatorTest:
         
         # Test Qiskit MPS
         print("\n1. Testing Qiskit MPS...")
-        result, error = self.test_qiskit_mps_with_timeout(qasm_file, timeout_seconds=60)
+        result, error = self.test_qiskit_mps_simple(qasm_file, timeout_seconds=60)
         if result:
             print(f"   ✓ Qiskit MPS: Peak={result['peak_bitstring']}, "
                   f"Prob={result['peak_probability']:.6f}, "
