@@ -132,39 +132,10 @@ class WorkingSimulatorTest:
             if circuit is None:
                 return None, "Failed to convert QASM to Cirq"
             
-            # Use Qsim simulator with state vector simulation
+            # Use Qsim simulator
             simulator = qsimcirq.QSimSimulator()
-            
-            try:
-                # Method 1: Try simulate for state vector
-                result = simulator.simulate(circuit)
-                statevector = result.final_state_vector
-            except Exception as sim_error:
-                # Method 2: If simulate fails, try run with measurements
-                try:
-                    # Add measurements to all qubits if none exist
-                    if not any(op.gate == cirq.ops.MeasurementGate for op in circuit.all_operations()):
-                        qubits = list(circuit.all_qubits())
-                        circuit_with_measurements = circuit + cirq.Circuit(cirq.measure(qubits))
-                    else:
-                        circuit_with_measurements = circuit
-                    
-                    # Run with repetitions
-                    result = simulator.run(circuit_with_measurements, repetitions=1000)
-                    counts = result.histogram(key='result')
-                    
-                    # Reconstruct state vector from counts
-                    num_qubits = len(list(circuit.all_qubits()))
-                    statevector = np.zeros(2**num_qubits, dtype=complex)
-                    total_shots = sum(counts.values())
-                    
-                    for bitstring, count in counts.items():
-                        index = int(bitstring, 2)
-                        amplitude = np.sqrt(count / total_shots)
-                        statevector[index] = amplitude
-                        
-                except Exception as run_error:
-                    return None, f"Both simulate and run failed: {sim_error}, {run_error}"
+            result = simulator.run(circuit)
+            statevector = result.final_state_vector
             
             execution_time = time.time() - start_time
             
@@ -194,7 +165,6 @@ class WorkingSimulatorTest:
             # Parse QASM to get circuit information
             num_qubits = 0
             instructions = []
-            measurements = []
             
             for line in qasm_content.split('\n'):
                 line = line.strip()
@@ -215,17 +185,12 @@ class WorkingSimulatorTest:
                     qubit = int(line.split('q[')[1].split(']')[0])
                     angle = float(line.split('(')[1].split(')')[0])
                     instructions.append(('rz', qubit, angle))
-                elif line.startswith('measure q['):
-                    # Parse measurement operations
-                    parts = line.split('q[')
-                    qubit = int(parts[1].split(']')[0])
-                    measurements.append(qubit)
             
             # Create Cirq circuit
             qubits = cirq.LineQubit.range(num_qubits)
             circuit = cirq.Circuit()
             
-            # Add quantum operations
+            # Add operations
             for instruction in instructions:
                 if instruction[0] == 'h':
                     qubit_idx = instruction[1]
@@ -241,11 +206,6 @@ class WorkingSimulatorTest:
                     control_idx = instruction[1]
                     target_idx = instruction[2]
                     circuit.append(cirq.CNOT(qubits[control_idx], qubits[target_idx]))
-            
-            # Add measurements if they exist in the QASM
-            if measurements:
-                for qubit_idx in measurements:
-                    circuit.append(cirq.measure(qubits[qubit_idx]))
             
             return circuit
             
